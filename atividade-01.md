@@ -17,3 +17,4 @@ O maior risco vem na rejeição do idoso à roupa inteligente ou falha em conex�
    PDF do repositório para o fluxo.
 
   Esse sistema é ubíquo e a mudança de contexto que pode modificar o funcionamento do sistema é a alteração de sinais vitais ou detecção de erro nas partes do sistema, que pode ser de malfuncionamento dos sensores ou nível de bateria.
+Deve ser acionado um membro da família ou responsável com acesso ao ambiente para checar o paciente / os aparelhos.
