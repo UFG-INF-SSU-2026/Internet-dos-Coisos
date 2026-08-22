@@ -4,7 +4,7 @@
 
  Usando a proposta de monitoramento e assistência a uma pessoa idosas, podemos criar o seguinte sistema ubíquo:
 
-1.O sistema físico é implementado no lugar em que um idoso reside, mas profissionais de saúde/a família com acesso ao sistema também são usuários do sistema pela via digital. 
+1. O sistema físico é implementado no lugar em que um idoso reside, mas profissionais de saúde/a família com acesso ao sistema também são usuários do sistema pela via digital. 
 
 2. É preciso que os sinais físicos do usuário sejam captados pelo sistema, o ambiente precisa ter conexão confiável e garantia do funcionamento dos sensores específicos e o sistema deve oferecer feedback sobre funcionamento e nível de baterias de suas partes. 
 
