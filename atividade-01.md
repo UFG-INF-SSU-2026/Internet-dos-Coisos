@@ -7,7 +7,7 @@ O sistema físico é implementado no lugar em que um idoso reside, mas profissio
 
 É preciso que os sinais físicos do usuário sejam captados pelo sistema, o ambiente precisa ter conexão confiável e garantia do funcionamento dos sensores específicos e o sistema deve oferecer feedback sobre funcionamento e nível de baterias de suas partes.
 
-Os dispositivos são uma roupa inteligente (para os sinais físicos), dispositivo móvel e um servidor remoto, a comunicação entre roupa inteligente e dispositivo móvel é bluetooth (backup: internet) e entre dispositivo móvel e servidor via internet
+Os dispositivos são uma roupa inteligente (para os sinais físicos), dispositivo móvel e um servidor remoto, a comunicação entre roupa inteligente e dispositivo móvel é bluetooth (fallback: internet) e entre dispositivo móvel e servidor via internet
 
 As informações são processadas na borda inicialmente e depois distribuída para o servidor centralizado.
 
