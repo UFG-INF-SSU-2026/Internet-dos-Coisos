@@ -1,10 +1,10 @@
-# Atividade em Grupo 01 — Análise Inicial de um Sistema Ubíquo
+# Atividade em Grupo 01 : Análise Inicial de um Sistema Ubíquo
 
 **Cenário escolhido:** Monitoramento ubíquo de saúde para pessoas idosas por meio de *smart clothing*.
 
 ---
 
-## Parte 1 — Compreensão do problema
+## Parte 1 : Compreensão do problema
 
 ### 1. Problema e usuários
 
@@ -31,7 +31,7 @@ O maior risco identificado é a **rejeição da roupa inteligente** pelo idoso, 
 
 ---
 
-## Parte 2 — Modelagem do sistema
+## Parte 2 : Modelagem do sistema
 
 ### 6. Sensores, atuadores e gateway
 
