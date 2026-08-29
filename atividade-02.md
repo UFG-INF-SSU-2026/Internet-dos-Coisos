@@ -21,27 +21,27 @@ São ocorrências diferentes: a FC diz *o que* está acontecendo, o movimento di
 
 Nos dois eventos, o **produtor** é um sensor da *smart clothing* e a **entidade observada** é a pessoa monitorada. Campos comuns:
 
-`eventType` · `eventId` (identificador único) · `deviceId` · `personId` (pseudonimizado) · `eventTime` (tempo do evento) · `sequence` (número sequencial do dispositivo) · `signalQuality` (0 a 1)
+`eventType` · `eventId` (identificador único) · `deviceId` · `patientId` (pseudonimizado) · `eventTime` (tempo do evento) · `sequence` (número sequencial do dispositivo) · `signalQuality` (0 a 1)
 
 | Evento | Campos próprios | Unidade |
 |---|---|---|
 | `HeartRateReading` | `heartRate` | `bpm` |
-| `MovementReading` | `movementState` (`REST`/`ACTIVE`), `accelMagnitude` | `g` |
+| `MovementReading` | `motionState` (`REST`/`ACTIVE`), `acceleration` | `g` |
 
 ### 3. Exemplos
 
 ```json
 { "eventType": "HeartRateReading", "eventId": "hr-0042-1842",
-  "deviceId": "smart-clothing-01", "personId": "person-0042",
+  "deviceId": "smart-clothing-01", "patientId": "patient-0042",
   "eventTime": "2026-08-28T19:14:32-03:00", "sequence": 1842,
   "heartRate": 108, "unit": "bpm", "signalQuality": 0.94 }
 ```
 
 ```json
 { "eventType": "MovementReading", "eventId": "mov-0042-9273",
-  "deviceId": "smart-clothing-01", "personId": "person-0042",
+  "deviceId": "smart-clothing-01", "patientId": "patient-0042",
   "eventTime": "2026-08-28T19:14:34-03:00", "sequence": 9273,
-  "movementState": "REST", "accelMagnitude": 1.01, "unit": "g", "signalQuality": 0.91 }
+  "motionState": "REST", "acceleration": 1.01, "unit": "g", "signalQuality": 0.91 }
 ```
 
 ### 4. Qualidade
@@ -60,7 +60,7 @@ Cada evento é validado no smartphone antes de participar de uma decisão:
 
 **Coleta → validação → normalização → deduplicação → filtragem por qualidade → agrupamento por pessoa → janelas → agregação → detecção → alerta**
 
-A normalização converte unidades e horários para uma base comum e deriva `movementState` a partir de `accelMagnitude`. O agrupamento é por `personId`. A agregação calcula a FC média e o movimento predominante da janela. A detecção aplica a regra do item 6 e, quando satisfeita, produz o alerta enviado ao cuidador.
+A normalização converte unidades e horários para uma base comum e deriva `motionState` a partir de `acceleration`. O agrupamento é por `patientId`. A agregação calcula a FC média e o movimento predominante da janela. A detecção aplica a regra do item 6 e, quando satisfeita, produz o alerta enviado ao cuidador.
 
 ### 6. Estado e janela
 
@@ -157,6 +157,12 @@ O BLE continua funcionando, e o smartphone segue validando eventos, mantendo as 
 O serviço fica **degradado**: a detecção local continua, mas o cuidador pode não receber a notificação remota até a reconexão.
 
 ### 13. Diagrama da distribuição
+
+**Fluxo completo — do sinal da pessoa até a resposta do sistema:**
+
+![Modelagem do sistema](assets/modelagem-atividade-02.png)
+
+**Mesma modelagem por local de execução:**
 
 ```mermaid
 flowchart LR

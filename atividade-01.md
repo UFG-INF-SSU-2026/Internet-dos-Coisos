@@ -43,7 +43,7 @@ O maior risco identificado é a **rejeição da roupa inteligente** pelo idoso, 
 
 **Idoso → Roupa inteligente (sensores) → Bluetooth (fallback: internet) → Dispositivo móvel (borda/gateway) → Internet → Servidor centralizado → Profissionais de saúde/família**
 
-![image](Modelagem.png)
+![Modelagem do sistema](assets/modelagem-atividade-01.png)
 
 ### 8. Classificação
 
