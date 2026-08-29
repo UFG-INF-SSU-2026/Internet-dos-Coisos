@@ -158,38 +158,11 @@ O serviço fica **degradado**: a detecção local continua, mas o cuidador pode 
 
 ### 13. Diagrama da distribuição
 
-**Fluxo completo — do sinal da pessoa até a resposta do sistema:**
+Fluxo completo, do sinal da pessoa até a resposta do sistema:
 
 ![Modelagem do sistema](assets/modelagem-atividade-02.png)
 
-**Mesma modelagem por local de execução:**
-
-```mermaid
-flowchart LR
-
-    subgraph D["DISPOSITIVO — Smart clothing"]
-        S["Sensores de FC e movimento<br/>eventId + eventTime + sequence"]
-    end
-
-    subgraph B["BORDA — Smartphone"]
-        V["Validar · normalizar<br/>deduplicar · filtrar"]
-        W[("Janelas e estado<br/>FC 60 s · Mov 30 s<br/>watermark 10 s")]
-        R{"A cada 15 s:<br/>FC média alta<br/>em repouso?"}
-        Q[("Fila de envio local")]
-        V --> W --> R
-        R -->|"Não / dados insuficientes"| W
-        R -->|"Sim"| Q
-    end
-
-    subgraph N["NUVEM"]
-        C["Alertas + histórico<br/>+ notificação"]
-    end
-
-    S -->|"BLE"| V
-    Q -->|"Internet"| C
-    C --> APP["App do cuidador"]
-    V -. "evento tardio" .-> C
-```
+Quanto ao local de execução (item 10): *Dispositivo Vestível* corresponde ao **dispositivo**; *Comunicação/Gateway* e *Processamento e Decisão* ocorrem na **borda** (smartphone); a *Resposta do Sistema* é entregue pela **nuvem** ao aplicativo do cuidador.
 
 ---
 
