@@ -5,7 +5,7 @@
 
 **Integrantes do grupo:**
 - Felipe Alves Leão de Araújo
-- Marcello Ronald José da Silva
+- Felipe O Carvalho
 - Matheus Augusto Ferreira Medeiros
 - Murilo Bernardo
 
