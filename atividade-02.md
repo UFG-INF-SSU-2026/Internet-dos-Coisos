@@ -13,6 +13,8 @@
 
 O sistema utiliza uma roupa inteligente com sensores de frequência cardíaca e movimento. A roupa envia os dados por Bluetooth Low Energy (BLE) ao smartphone da pessoa monitorada, que atua como gateway e nó de borda. O objetivo continua sendo **monitorar e alertar**, e não realizar diagnóstico médico.
 
+**Ajustes em relação à Atividade 01:** o público-alvo foi ampliado de "pessoas idosas" para "pessoas em situação de vulnerabilidade física", e o conjunto de sensores foi delimitado a frequência cardíaca e movimento, para que a regra de decisão pudesse ser especificada de forma verificável.
+
 ---
 
 ## Parte 1 — Eventos do sistema
@@ -104,7 +106,7 @@ Antes de participar de uma decisão, cada evento é validado no smartphone.
 
 Um evento será considerado **inválido** quando faltar algum campo obrigatório, a origem não for reconhecida, a unidade estiver incorreta ou `signalQuality` estiver abaixo do limite mínimo configurado para o sensor.
 
-Um evento será considerado **duplicado** quando já tiver sido processado outro evento com o mesmo `eventId`. Como verificação adicional, o sistema também acompanha o `sequence` de cada tipo de evento e dispositivo.
+Um evento será considerado **duplicado** quando já tiver sido processado outro evento com o mesmo `eventId`. Como verificação adicional, o sistema acompanha o `sequence` por dispositivo e tipo de evento: um `sequence` menor ou igual ao último observado indica chegada **fora de ordem**, e um salto maior que uma unidade indica **perda de amostras**, o que reduz a cobertura da janela descrita no item 6.
 
 Um evento será considerado **desatualizado para decisão em tempo real** quando seu `eventTime` for anterior ao limite temporal já consolidado pelo sistema. Esses eventos não serão usados para gerar um novo alerta imediato.
 
@@ -116,17 +118,17 @@ Um evento será considerado **desatualizado para decisão em tempo real** quando
 
 O caminho principal dos eventos é:
 
-**Coleta → validação → deduplicação → filtragem por qualidade → agrupamento por pessoa → atualização das janelas → agregação → detecção da situação → alerta**
+**Coleta → validação → normalização → deduplicação → filtragem por qualidade → agrupamento por pessoa → atualização das janelas → agregação → detecção da situação → atuação (alerta ao cuidador)**
 
 1. A *smart clothing* coleta frequência cardíaca e movimento.
 2. Os eventos são enviados ao smartphone por BLE.
-3. O smartphone valida o contrato, a origem, a qualidade e a identificação do evento.
-4. Eventos duplicados ou inválidos são removidos do fluxo de decisão.
-5. Os eventos válidos são agrupados por `personId`.
-6. As leituras de frequência cardíaca alimentam a janela temporal de FC.
-7. As leituras de movimento alimentam o estado recente de atividade/repouso.
-8. O sistema calcula a frequência cardíaca média e verifica o contexto de movimento.
-9. Se a regra for satisfeita, é criado um evento de alerta e encaminhado ao serviço responsável pela notificação do cuidador.
+3. O smartphone valida o contrato, a origem e a identificação do evento.
+4. **Transformação:** os valores são normalizados para as unidades e a base de tempo do sistema (`bpm`, `g` e `eventTime` em UTC com deslocamento explícito), e o `movementState` é derivado de `accelMagnitude` quando o dispositivo envia apenas a aceleração.
+5. Eventos duplicados, inválidos ou com `signalQuality` abaixo do limite são removidos do fluxo de decisão.
+6. Os eventos válidos são agrupados por `personId`.
+7. As leituras de frequência cardíaca alimentam a janela temporal de FC; as de movimento alimentam o estado recente de atividade/repouso.
+8. O sistema agrega a janela: calcula a frequência cardíaca média e verifica o contexto de movimento predominante.
+9. Se a regra for satisfeita, é criado um evento de alerta (**atuação**) e encaminhado ao serviço responsável pela notificação do cuidador.
 
 ### 6. Estado e janela
 
@@ -134,8 +136,9 @@ A regra utiliza uma **janela deslizante**.
 
 - **Janela de frequência cardíaca:** últimos **60 segundos**.
 - **Contexto de movimento:** últimos **30 segundos**.
-- **Frequência de avaliação:** a cada **15 segundos**.
-- **Estado mantido no smartphone:** leituras válidas de FC dos últimos 60 s, leituras de movimento dos últimos 30 s, IDs/sequências recentemente processados e estado do alerta atual.
+- **Frequência de avaliação:** a cada **15 segundos** (janela deslizante de 60 s com passo de 15 s).
+- **Amostragem esperada:** **1 leitura por segundo** em cada fluxo, valor usado como referência para calcular a cobertura da janela.
+- **Estado mantido no smartphone:** leituras válidas de FC dos últimos 60 s, leituras de movimento dos últimos 30 s, `eventId`/`sequence` recentemente processados, maior `eventTime` observado (base da watermark) e estado do alerta atual (`alerta_ativo`).
 
 A condição é:
 
@@ -143,7 +146,7 @@ A condição é:
 
 O limite de frequência cardíaca é um parâmetro configurável do sistema e não representa, por si só, um diagnóstico médico.
 
-Para evitar decisões com poucos dados, a janela só é considerada válida quando possuir cobertura mínima de **70% das amostras esperadas** em cada fluxo. Caso contrário, o estado passa a ser **dados insuficientes** e nenhum alerta é produzido com base naquela janela.
+Para evitar decisões com poucos dados, a janela só é considerada válida quando possuir cobertura mínima de **70% das amostras esperadas** em cada fluxo — ou seja, ao menos 42 leituras válidas de FC nos 60 s e 21 leituras de movimento nos 30 s. Caso contrário, o estado passa a ser **dados insuficientes** e nenhum alerta é produzido com base naquela janela.
 
 ### 7. Semântica temporal
 
@@ -169,23 +172,26 @@ A escolha evita que uma leitura antiga gere uma atuação fora de contexto, mas 
 
 ```text
 CONSTANTES:
-    JANELA_FC = 60 segundos
-    JANELA_MOVIMENTO = 30 segundos
-    PASSO = 15 segundos
-    ATRASO_TOLERADO = 10 segundos
-    COBERTURA_MINIMA = 70%
+    JANELA_FC          = 60 segundos
+    JANELA_MOVIMENTO   = 30 segundos
+    PASSO              = 15 segundos
+    ATRASO_TOLERADO    = 10 segundos
+    COBERTURA_MINIMA   = 0,70
+    TAXA_ESPERADA      = 1 leitura por segundo (em cada fluxo)
+    QUALIDADE_MINIMA   = 0,50
 
 ESTADO POR PESSOA:
-    fc_validas
-    movimentos_validos
-    ids_processados
-    ultima_sequencia_por_tipo
-    alerta_ativo
-    maior_event_time
+    fc_validas                  // leituras de FC dentro da janela de 60 s
+    movimentos_validos          // leituras de movimento dentro da janela de 30 s
+    ids_processados             // eventIds ainda cobertos pelas janelas
+    ultima_sequencia[deviceId, eventType]
+    alerta_ativo      = falso
+    maior_event_time  = indefinido
 
 AO_RECEBER(evento):
 
-    se campos_obrigatorios_ausentes(evento):
+    // --- validade do dado ---
+    se campos_obrigatorios_ausentes(evento) OU unidade_incorreta(evento):
         marcar INVALIDO
         retornar
 
@@ -193,13 +199,25 @@ AO_RECEBER(evento):
         marcar INVALIDO
         retornar
 
-    se qualidade_abaixo_do_limite(evento.signalQuality):
+    se evento.signalQuality < QUALIDADE_MINIMA:
         marcar INVALIDO
         retornar
 
+    // --- duplicação e ordem ---
     se evento.eventId em ids_processados:
         marcar DUPLICADO
         retornar
+
+    chave = (evento.deviceId, evento.eventType)
+    se ultima_sequencia[chave] existe:
+        se evento.sequence <= ultima_sequencia[chave]:
+            marcar FORA_DE_ORDEM        // não descarta: a decisão usa eventTime
+        senão se evento.sequence > ultima_sequencia[chave] + 1:
+            registrar PERDA_DE_AMOSTRAS(chave, lacuna)   // reduz a cobertura
+
+    // --- validade temporal ---
+    se maior_event_time == indefinido:
+        maior_event_time = evento.eventTime
 
     watermark = maior_event_time - ATRASO_TOLERADO
 
@@ -208,37 +226,46 @@ AO_RECEBER(evento):
         separar_para_historico(evento)
         retornar
 
-    registrar evento.eventId
-    atualizar ultima_sequencia_por_tipo
-    atualizar maior_event_time
+    // --- atualização do estado ---
+    inserir evento.eventId em ids_processados
+    ultima_sequencia[chave] = max(ultima_sequencia[chave], evento.sequence)
+    maior_event_time        = max(maior_event_time, evento.eventTime)
 
     se evento.eventType == HeartRateReading:
-        adicionar evento em fc_validas
+        inserir evento em fc_validas
 
     se evento.eventType == MovementReading:
-        adicionar evento em movimentos_validos
+        inserir evento em movimentos_validos
 
-    remover do estado eventos fora das janelas
+    // --- poda das janelas (referência: maior_event_time) ---
+    manter em fc_validas         apenas eventTime > maior_event_time - JANELA_FC
+    manter em movimentos_validos apenas eventTime > maior_event_time - JANELA_MOVIMENTO
+    manter em ids_processados    apenas os ids ainda presentes nas duas janelas
 
-A_CADA_15_SEGUNDOS:
+A_CADA_15_SEGUNDOS (PASSO):
 
-    fc_janela = eventos de FC dos últimos 60 s pelo eventTime
-    mov_janela = eventos de movimento dos últimos 30 s pelo eventTime
+    agora      = maior_event_time
+    fc_janela  = fc_validas         com eventTime em (agora - JANELA_FC, agora]
+    mov_janela = movimentos_validos com eventTime em (agora - JANELA_MOVIMENTO, agora]
 
-    se cobertura(fc_janela) < 70% OU cobertura(mov_janela) < 70%:
+    cobertura_fc  = tamanho(fc_janela)  / (JANELA_FC * TAXA_ESPERADA)          // 42 de 60
+    cobertura_mov = tamanho(mov_janela) / (JANELA_MOVIMENTO * TAXA_ESPERADA)   // 21 de 30
+
+    se cobertura_fc < COBERTURA_MINIMA OU cobertura_mov < COBERTURA_MINIMA:
         estado = DADOS_INSUFICIENTES
-        não gerar alerta
+        não gerar alerta            // alerta_ativo é preservado, para não realertar
         retornar
 
-    media_fc = média(fc_janela.heartRate)
+    media_fc   = média(fc_janela.heartRate)
     em_repouso = maioria(mov_janela.movementState) == REST
 
     se media_fc > limite_fc_configurado(personId) E em_repouso:
         se alerta_ativo == falso:
-            gerar ALERTA(personId, media_fc, eventTime)
+            gerar ALERTA(personId, media_fc, janela = [agora - JANELA_FC, agora])
+            enfileirar_para_nuvem(ALERTA)      // resposta: notificação ao cuidador
             alerta_ativo = verdadeiro
     senão:
-        alerta_ativo = falso
+        alerta_ativo = falso        // condição deixou de valer: rearma o alerta
 ```
 
 ---
@@ -292,17 +319,19 @@ flowchart LR
     P -->|"Bluetooth / BLE<br/>HeartRateReading + MovementReading"| E
 
     subgraph B["BORDA — Smartphone"]
-        E["Validar + deduplicar<br/>+ filtrar qualidade"]
-        W["Estado temporal<br/>FC: 60 s<br/>Movimento: 30 s<br/>Watermark: 10 s"]
-        R["Avaliar a cada 15 s<br/>média FC + contexto"]
+        E["Validar + normalizar<br/>+ deduplicar + filtrar qualidade"]
+        W[("Estado temporal<br/>FC: 60 s · Movimento: 30 s<br/>Watermark: 10 s<br/>alerta_ativo")]
+        R["Avaliar a cada 15 s<br/>cobertura ≥ 70%<br/>média FC + contexto"]
         DEC{"Condição de alerta?"}
-        Q["Fila local temporária<br/>em caso de falha de internet"]
+        A["Evento de alerta"]
+        Q[("Fila de envio local<br/>retém enquanto a internet<br/>estiver indisponível")]
 
         E --> W
         W --> R
         R --> DEC
-        DEC -->|"Sim"| Q
-        DEC -->|"Não"| W
+        DEC -->|"Sim e alerta_ativo = falso"| A
+        DEC -->|"Não / dados insuficientes"| W
+        A --> Q
     end
 
     Q -->|"Internet / conexão segura"| C
