@@ -72,13 +72,13 @@ A regra usa uma **janela deslizante**:
 
 > Se a **FC média dos últimos 60 s** ultrapassar o limite configurado para a pessoa **e** as leituras recentes indicarem **repouso**, o sistema gera um alerta.
 
-O limite de FC é configurável e não representa diagnóstico. A janela só é válida com **cobertura mínima de 70%** das amostras esperadas (42 de 60 na FC, 21 de 30 no movimento); abaixo disso o estado é **dados insuficientes** e nenhum alerta é gerado.
+O limite de FC é configurável e não representa diagnóstico. A janela só é válida com **cobertura mínima de 70%** das amostras esperadas (42 de 60 na FC, 21 de 30 no movimento) — a cobertura mede quanto da janela chegou de fato, evitando que uma média calculada sobre poucas leituras dispare um alerta falso. Abaixo disso o estado é **dados insuficientes** e nenhum alerta é gerado.
 
 ### 7. Semântica temporal
 
 A regra usa **tempo do evento (`eventTime`)**, não o tempo de processamento, porque o dado pode atrasar no BLE ou no smartphone — uma leitura antiga tratada como atual distorceria a janela e a ordem real dos fatos.
 
-O smartphone mantém uma **watermark de 10 s**: `watermark = maior eventTime observado - 10 s`.
+O smartphone mantém uma **watermark de 10 s**: `watermark = maior eventTime observado - 10 s`. Ela define por quanto tempo uma leitura atrasada ainda é aceita — antes desse limite, o trecho do tempo é considerado fechado e o evento vira tardio (item 8).
 
 ### 8. Eventos atrasados
 
