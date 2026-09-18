@@ -82,6 +82,38 @@
       }
     },
     {
+      "type": "wokwi-pushbutton",
+      "id": "btn2",
+      "top": -130,
+      "left": 400,
+      "attrs": {
+        "color": "red",
+        "label": "falha broker"
+      }
+    },
+    {
+      "type": "wokwi-text",
+      "id": "lbl_btn2",
+      "top": -162,
+      "left": 400,
+      "attrs": {
+        "text": "Falha simulada do broker - GPIO13",
+        "fontSize": "13",
+        "color": "#b71c1c"
+      }
+    },
+    {
+      "type": "wokwi-text",
+      "id": "lbl_btn2_n",
+      "top": -146,
+      "left": 400,
+      "attrs": {
+        "text": "alterna: derruba a conexao / restaura e esvazia a fila",
+        "fontSize": "11",
+        "color": "#6b6b6b"
+      }
+    },
+    {
       "type": "wokwi-rgb-led",
       "id": "rgb1",
       "top": 180,
@@ -267,6 +299,22 @@
     ],
     [
       "btn1:2.l",
+      "esp:GND.3",
+      "black",
+      [
+        "v0"
+      ]
+    ],
+    [
+      "btn2:1.l",
+      "esp:D13",
+      "red",
+      [
+        "v0"
+      ]
+    ],
+    [
+      "btn2:2.l",
       "esp:GND.3",
       "black",
       [

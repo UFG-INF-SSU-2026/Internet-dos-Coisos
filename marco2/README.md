@@ -71,20 +71,22 @@ O monitor serial deve mostrar `WiFi conectado` e `mqtt: conectado`.
 
 **Broker indisponível.**
 
-Para demonstrar: com a integração funcionando, digite `f` no monitor serial do Wokwi. O produtor fecha a conexão com o broker e não reconecta até o próximo `f` — o mesmo efeito, do ponto de vista do código, de o broker sair do ar. Em seguida provoque uma transição (por exemplo, baixe o potenciômetro para sair de `ATENCAO`). O monitor serial passa a mostrar:
+Para demonstrar: com a integração funcionando, clique no botão vermelho **"falha broker"** (GPIO 13) no diagrama do Wokwi. O produtor fecha a conexão com o broker e não reconecta até o próximo clique — o mesmo efeito, do ponto de vista do código, de o broker sair do ar. Em seguida provoque uma transição (por exemplo, baixe o potenciômetro para sair de `ATENCAO`). O monitor serial passa a mostrar:
 
 ```
-FALHA SIMULADA: broker indisponivel (tecle f para restaurar)
+FALHA SIMULADA: broker indisponivel (acione de novo para restaurar)
 mqtt: INDISPONIVEL - evento enfileirado (1 na fila)
 ```
 
-O produtor **continua amostrando, avaliando a janela e transitando de estado**. O LED e o buzzer seguem funcionando. O consumidor não recebe nada nesse intervalo. Digite `f` de novo: o produtor reconecta e esvazia a fila em ordem:
+O produtor **continua amostrando, avaliando a janela e transitando de estado**. O LED e o buzzer seguem funcionando. O consumidor não recebe nada nesse intervalo. Clique no botão de novo: o produtor reconecta e esvazia a fila em ordem:
 
 ```
 fila: reenviado (0 restantes)
 ```
 
 No consumidor o evento chega com o `sequence` correto, sem salto. A desconexão interrompe a entrega, não a decisão.
+
+Teclar `f` com o monitor serial em foco faz o mesmo que o botão.
 
 > Parar o consumidor **não** exercita essa falha: o produtor continua conectado ao broker e publica normalmente; quem perde os eventos é o consumidor, que ao voltar verá um salto na sequência. Isso também é observável, mas é outra condição.
 

@@ -65,7 +65,8 @@ const char* ENTITY_ID     = "patient-0042";
 const int   SCHEMA_VERSION = 1;
 
 const uint8_t PINO_FC     = 34;
-const uint8_t PINO_BOTAO  = 15;
+const uint8_t PINO_BOTAO  = 15;   // "silenciar": leitura ausente
+const uint8_t PINO_FALHA  = 13;   // "falha broker": alterna a falha simulada
 const uint8_t PINO_LED_R  = 25;
 const uint8_t PINO_LED_G  = 26;
 const uint8_t PINO_LED_B  = 27;
@@ -133,8 +134,9 @@ bool     alertaAtivo        = false;
 char     fila[FILA_TAMANHO][320];
 uint8_t  filaInicio = 0, filaFim = 0, filaCheia = 0;
 
-// Falha simulada: 'f' no monitor serial derruba a conexao e impede a
-// reconexao ate o proximo 'f'. Serve para exercitar a fila na demonstracao.
+// Falha simulada: o botao "falha broker" (ou 'f' no monitor serial) derruba
+// a conexao e impede a reconexao ate o proximo acionamento. Serve para
+// exercitar a fila na demonstracao.
 bool     falhaSimulada = false;
 
 
@@ -268,17 +270,31 @@ void publicar(const char* payload) {
   }
 }
 
+void alternarFalhaSimulada() {
+  falhaSimulada = !falhaSimulada;
+  if (falhaSimulada) {
+    mqtt.disconnect();
+    Serial.printf("[%lu] FALHA SIMULADA: broker indisponivel (acione de novo para restaurar)\n", millis());
+  } else {
+    Serial.printf("[%lu] falha simulada encerrada - reconectando\n", millis());
+  }
+}
+
+void lerBotaoFalha() {
+  static bool     anterior      = HIGH;
+  static uint32_t ultimaBordaMs = 0;
+  bool atual = digitalRead(PINO_FALHA);
+  if (atual == LOW && anterior == HIGH && millis() - ultimaBordaMs > 300) {
+    ultimaBordaMs = millis();
+    alternarFalhaSimulada();
+  }
+  anterior = atual;
+}
+
 void lerComandoSerial() {
   while (Serial.available()) {
     char c = Serial.read();
-    if (c != 'f' && c != 'F') continue;
-    falhaSimulada = !falhaSimulada;
-    if (falhaSimulada) {
-      mqtt.disconnect();
-      Serial.printf("[%lu] FALHA SIMULADA: broker indisponivel (tecle f para restaurar)\n", millis());
-    } else {
-      Serial.printf("[%lu] falha simulada encerrada - reconectando\n", millis());
-    }
+    if (c == 'f' || c == 'F') alternarFalhaSimulada();
   }
 }
 
@@ -416,6 +432,7 @@ void setup() {
   delay(200);
 
   pinMode(PINO_BOTAO, INPUT_PULLUP);
+  pinMode(PINO_FALHA, INPUT_PULLUP);
   pinMode(PINO_LED_R, OUTPUT); pinMode(PINO_LED_G, OUTPUT);
   pinMode(PINO_LED_B, OUTPUT); pinMode(PINO_BUZZER, OUTPUT);
 
@@ -466,6 +483,7 @@ bool chegouAHora(uint32_t agora, uint32_t &proximo, uint32_t periodo) {
 void loop() {
   uint32_t agora = millis();
 
+  lerBotaoFalha();
   lerComandoSerial();
 
   // Comunicacao: reconecta sem bloquear a coleta nem a decisao.
