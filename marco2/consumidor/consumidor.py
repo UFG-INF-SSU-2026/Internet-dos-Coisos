@@ -93,8 +93,11 @@ def on_connect(client, userdata, flags, rc, properties=None):
         print(f"[{agora()}] falha na conexao (rc={rc})")
 
 
-def on_disconnect(client, userdata, rc, properties=None):
-    print(f"[{agora()}] desconectado do broker (rc={rc}) - tentando reconectar")
+def on_disconnect(client, userdata, *args):
+    # paho 1.x: (client, userdata, rc)
+    # paho 2.x: (client, userdata, disconnect_flags, reason_code, properties)
+    rc = args[1] if len(args) >= 2 else args[0]
+    print(f"[{agora()}] desconectado do broker (rc={rc})")
 
 
 def on_message(client, userdata, msg):

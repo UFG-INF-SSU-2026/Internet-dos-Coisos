@@ -71,21 +71,26 @@ O monitor serial deve mostrar `WiFi conectado` e `mqtt: conectado`.
 
 **Broker indisponível.**
 
-Para demonstrar: com a integração funcionando, desconecte a rede da máquina ou pare o consumidor e observe o produtor. O monitor serial passa a mostrar:
+Para demonstrar: com a integração funcionando, digite `f` no monitor serial do Wokwi. O produtor fecha a conexão com o broker e não reconecta até o próximo `f` — o mesmo efeito, do ponto de vista do código, de o broker sair do ar. Em seguida provoque uma transição (por exemplo, baixe o potenciômetro para sair de `ATENCAO`). O monitor serial passa a mostrar:
 
 ```
-mqtt: INDISPONIVEL - evento enfileirado (n na fila)
+FALHA SIMULADA: broker indisponivel (tecle f para restaurar)
+mqtt: INDISPONIVEL - evento enfileirado (1 na fila)
 ```
 
-O produtor **continua amostrando, avaliando a janela e transitando de estado**. O LED e o buzzer seguem funcionando. Ao reconectar, a fila é esvaziada em ordem:
+O produtor **continua amostrando, avaliando a janela e transitando de estado**. O LED e o buzzer seguem funcionando. O consumidor não recebe nada nesse intervalo. Digite `f` de novo: o produtor reconecta e esvazia a fila em ordem:
 
 ```
-fila: reenviado (2 restantes)
+fila: reenviado (0 restantes)
 ```
 
-A desconexão interrompe a entrega, não a decisão.
+No consumidor o evento chega com o `sequence` correto, sem salto. A desconexão interrompe a entrega, não a decisão.
 
-Há ainda um segundo mecanismo: o produtor declara *last will* no tópico `.../status`. Se a simulação for interrompida sem encerramento, o próprio broker publica `offline` e o consumidor mostra que o dispositivo ficou silencioso. Ausência de dado não é ausência de risco.
+> Parar o consumidor **não** exercita essa falha: o produtor continua conectado ao broker e publica normalmente; quem perde os eventos é o consumidor, que ao voltar verá um salto na sequência. Isso também é observável, mas é outra condição.
+
+Há ainda um segundo mecanismo: o produtor declara *last will* no tópico `.../status`. Se a simulação for interrompida sem encerramento, o próprio broker publica `offline` (em até 60 s, 1,5× o *keepalive* declarado) e o consumidor mostra que o dispositivo ficou silencioso. Ausência de dado não é ausência de risco.
+
+> **Keepalive no Wokwi.** A simulação com WiFi roda mais devagar que o tempo real, e com o *keepalive* padrão de 15 s o PING chegava atrasado: o broker derrubava a conexão a cada ~25 s e publicava `offline` sem que nada tivesse falhado. O produtor agora declara 40 s ao broker mas pinga a cada 10 s simulados (`MQTT_KEEPALIVE_BROKER_S` / `MQTT_KEEPALIVE_CLIENTE_S`). Se ainda aparecer `offline` espontâneo, é isso, não a fila.
 
 ---
 

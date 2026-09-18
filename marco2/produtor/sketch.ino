@@ -74,6 +74,14 @@ const uint8_t PINO_BUZZER = 4;
 const uint32_t PERIODO_AMOSTRAGEM_MS = 1000;
 const uint32_t RETENTATIVA_MQTT_MS   = 3000;
 
+// O Wokwi roda mais devagar que o tempo real com WiFi ativo: 15 s de millis()
+// podem levar mais de 22 s reais. Com o keepalive padrao do PubSubClient
+// (15 s) o PING chega atrasado, o broker derruba a conexao e publica o last
+// will sem que nada tenha falhado. Por isso o produtor declara ao broker uma
+// tolerancia maior do que o intervalo em que de fato pinga.
+const uint16_t MQTT_KEEPALIVE_BROKER_S  = 40;  // broker espera ate 1,5x = 60 s
+const uint16_t MQTT_KEEPALIVE_CLIENTE_S = 10;  // cliente pinga a cada 10 s simulados
+
 const float FC_MIN_VALIDA = 30.0;
 const float FC_MAX_VALIDA = 220.0;
 const float FC_ESCALA_MAX = 250.0;
@@ -124,6 +132,10 @@ bool     alertaAtivo        = false;
 // Fila local: preserva eventos produzidos enquanto o broker esta ausente.
 char     fila[FILA_TAMANHO][320];
 uint8_t  filaInicio = 0, filaFim = 0, filaCheia = 0;
+
+// Falha simulada: 'f' no monitor serial derruba a conexao e impede a
+// reconexao ate o proximo 'f'. Serve para exercitar a fila na demonstracao.
+bool     falhaSimulada = false;
 
 
 /* == 4. ENTRADA E VALIDACAO ============================================== */
@@ -256,7 +268,22 @@ void publicar(const char* payload) {
   }
 }
 
+void lerComandoSerial() {
+  while (Serial.available()) {
+    char c = Serial.read();
+    if (c != 'f' && c != 'F') continue;
+    falhaSimulada = !falhaSimulada;
+    if (falhaSimulada) {
+      mqtt.disconnect();
+      Serial.printf("[%lu] FALHA SIMULADA: broker indisponivel (tecle f para restaurar)\n", millis());
+    } else {
+      Serial.printf("[%lu] falha simulada encerrada - reconectando\n", millis());
+    }
+  }
+}
+
 void conectarMqtt() {
+  if (falhaSimulada) return;
   if (WiFi.status() != WL_CONNECTED) return;
   if ((int32_t)(millis() - proximaTentativaMs) < 0) return;
   proximaTentativaMs = millis() + RETENTATIVA_MQTT_MS;
@@ -269,8 +296,10 @@ void conectarMqtt() {
   /* Last will: se a conexao cair sem encerramento, o proprio broker publica
    * "offline" no topico de status. O silencio do dispositivo passa a ser
    * observavel pelo consumidor.                                            */
+  mqtt.setKeepAlive(MQTT_KEEPALIVE_BROKER_S);     // valor enviado no CONNECT
   bool ok = mqtt.connect(clientId, NULL, NULL,
                          TOPICO_STATUS, 1, true, "{\"status\":\"offline\"}");
+  mqtt.setKeepAlive(MQTT_KEEPALIVE_CLIENTE_S);    // intervalo real de PING
   if (ok) {
     Serial.printf("[%lu] mqtt: conectado\n", millis());
     mqtt.publish(TOPICO_STATUS, "{\"status\":\"online\"}", true);
@@ -436,6 +465,8 @@ bool chegouAHora(uint32_t agora, uint32_t &proximo, uint32_t periodo) {
 
 void loop() {
   uint32_t agora = millis();
+
+  lerComandoSerial();
 
   // Comunicacao: reconecta sem bloquear a coleta nem a decisao.
   if (!mqtt.connected()) conectarMqtt();
