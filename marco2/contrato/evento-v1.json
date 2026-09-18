@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "eventType": "vitals.state.changed",
+  "eventId": "esp32-borda-01-3",
+  "deviceId": "esp32-borda-01",
+  "entityId": "patient-0042",
+  "eventTimeMs": 76082,
+  "sequence": 3,
+  "value": 132.5,
+  "unit": "bpm",
+  "state": "ATENCAO",
+  "motion": "REST",
+  "coverageFc": 1.00,
+  "coverageMov": 1.00,
+  "reason": "condicao_persistiu"
+}

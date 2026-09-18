@@ -1,0 +1,220 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1500 1000" width="1500" height="1000" font-family="Helvetica, Arial, sans-serif" xmlns:c2pa="http://c2pa.org/manifest"><metadata><c2pa:manifest>AAAWgmp1bWIAAAAeanVtZGMycGEAEQAQgAAAqgA4m3EDYzJwYQAAABZcanVtYgAAAEdqdW1kYzJtYQARABCAAACqADibcQN1cm46YzJwYTo0MTUzNGY0OC0wOTI2LTQ1YmEtYmExNy1mNGY2ZTBkOTdlY2EAAAADl2p1bWIAAAApanVtZGMyYXMAEQAQgAAAqgA4m3EDYzJwYS5hc3NlcnRpb25zAAAAALxqdW1iAAAARGp1bWRjYm9yABEAEIAAAKoAOJtxE2MycGEuaW5ncmVkaWVudC52MwAAAAAYYzJzaB1XDoXnLuQtWWePpK4SmdQAAABwY2JvcqNpZGM6Zm9ybWF0bWltYWdlL3N2Zyt4bWxqaW5zdGFuY2VJRHgseG1wOmlpZDo0ZWU1MTA5My02MDQ1LTRjMDktYWE3Ni0zOWVjZjMxM2E4YzhscmVsYXRpb25zaGlwaHBhcmVudE9mAAAB4mp1bWIAAABBanVtZGNib3IAEQAQgAAAqgA4m3ETYzJwYS5hY3Rpb25zLnYyAAAAABhjMnNoT4EBcCLhiJMEP9DIqnQNdAAAAZljYm9yomdhY3Rpb25zgqJmYWN0aW9ua2MycGEub3BlbmVkanBhcmFtZXRlcnOha2luZ3JlZGllbnRzgaJjdXJseC1zZWxmI2p1bWJmPWMycGEuYXNzZXJ0aW9ucy9jMnBhLmluZ3JlZGllbnQudjNkaGFzaFggjNMn487j7y+cdC/4k5S3YgOLMKaDbKUYGtOemlPWAuOkZmFjdGlvbngdY29tLmFudGhyb3BpYy5jbGF1ZGUucHJvdmlkZWRqcGFyYW1ldGVyc6F4H2NvbS5hbnRocm9waWMub3JpZ2luLWNvbmZpZGVuY2VndW5rbm93bmtkZXNjcmlwdGlvbnhmQ2xhdWRlIHByb3ZpZGVkIHRoaXMgZmlsZSBhdCB0aGUgcmVxdWVzdCBvZiBhIHVzZXIgYW5kIG1heSBoYXZlIGNyZWF0ZWQgb3IgbW9kaWZpZWQgdGhlIGZpbGUgY29udGVudHMubXNvZnR3YXJlQWdlbnShZG5hbWVmQ2xhdWRlcmFsbEFjdGlvbnNJbmNsdWRlZPUAAADIanVtYgAAAEBqdW1kY2JvcgARABCAAACqADibcRNjMnBhLmhhc2guZGF0YQAAAAAYYzJzaLEeaqaKnYuXNusF9T+mOjUAAACAY2JvcqVjYWxnZnNoYTI1NmNwYWRNAAAAAAAAAAAAAAAAAGRoYXNoWCDkSDgHdhjp2aH7xsLX7CD4UIoU9Ie7mf+ZCj3QZwX6U2RuYW1lbmp1bWJmIG1hbmlmZXN0amV4Y2x1c2lvbnOBomVzdGFydBjFZmxlbmd0aBkeBAAAAj5qdW1iAAAAJ2p1bWRjMmNsABEAEIAAAKoAOJtxA2MycGEuY2xhaW0udjIAAAACD2Nib3KlY2FsZ2ZzaGEyNTZpc2lnbmF0dXJleE1zZWxmI2p1bWJmPS9jMnBhL3VybjpjMnBhOjQxNTM0ZjQ4LTA5MjYtNDViYS1iYTE3LWY0ZjZlMGQ5N2VjYS9jMnBhLnNpZ25hdHVyZWppbnN0YW5jZUlEeCx4bXA6aWlkOmEzOTVlNWQ4LWZmYzYtNGU4OS1iN2NkLWE2ZGE4NDZjMGI0NHJjcmVhdGVkX2Fzc2VydGlvbnODomN1cmx4LXNlbGYjanVtYmY9YzJwYS5hc3NlcnRpb25zL2MycGEuaW5ncmVkaWVudC52M2RoYXNoWCCM0yfjzuPvL5x0L/iTlLdiA4swpoNspRga056aU9YC46JjdXJseCpzZWxmI2p1bWJmPWMycGEuYXNzZXJ0aW9ucy9jMnBhLmFjdGlvbnMudjJkaGFzaFgg7ENjYK8Zo0tQJMW5FvZUICzaBqRfUIk3ByAsYCQviXmiY3VybHgpc2VsZiNqdW1iZj1jMnBhLmFzc2VydGlvbnMvYzJwYS5oYXNoLmRhdGFkaGFzaFggIPrA+jnPChOqdPwneM6CXecFuQO+/2WQaHYbpwrr9Np0Y2xhaW1fZ2VuZXJhdG9yX2luZm+jZG5hbWVvQW50aHJvcGljIEZpbGVzZ3ZlcnNpb25lMS4wLjBrc3BlY1ZlcnNpb25lMi40LjAAABA4anVtYgAAAChqdW1kYzJjcwARABCAAACqADibcQNjMnBhLnNpZ25hdHVyZQAAABAIY2JvctKEWQISogEmGCFZAgowggIGMIIBjaADAgECAhRA5aAK7sI50L64g/oGQgU9Z1UTADAKBggqhkjOPQQDAzBJMRcwFQYDVQQKEw5BbnRocm9waWMsIFBCQzEuMCwGA1UEAxMlQW50aHJvcGljIENvbnRlbnQgQ3JlZGVudGlhbHMgUm9vdCBDQTAeFw0yNjA4MDcxODQzNTZaFw0yODA4MDYxOTQzNTZaMEQxFzAVBgNVBAoTDkFudGhyb3BpYywgUEJDMSkwJwYDVQQDEyBBbnRocm9waWMgQ2xhdWRlIENvbnRlbnQgU2lnbmluZzBZMBMGByqGSM49AgEGCCqGSM49AwEHA0IABJh6CmvLUBgFFNU0vUKlOVtE6djd17L5SuwX0LemFisBM3dkd/3cyjxFA3Qo5S46fX0/ihY0VZ7mfb9KF703t5OjWDBWMA4GA1UdDwEB/wQEAwIHgDAVBgNVHSUEDjAMBgorBgEEAYPoXgIBMAwGA1UdEwEB/wQCMAAwHwYDVR0jBBgwFoAUzlHiBIFOZFsj+OPEz5o+nMHXXMIwCgYIKoZIzj0EAwMDZwAwZAIwMXMdFJ4BetLLVY7ORuE9noqbbAZOZn/aArXyTwFAZfKrPzxF2vPoJNf1+UCdg1XGAjBwX1zd9WGqYkqmL5SFqw1QySjr1zJfpJM9+1rdDwSPLMOPOjKuiXjoU/pUUeG9RwmhY3BhZFkNngAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAPZYQCeb1yXwDi17gp2mTvQIxf9bibIXG3S6mXgCVeAdJFArYM6dog2y7eSycBzc1G31llTqsGprk/XPSVWSDkVzErM=</c2pa:manifest></metadata>
+  <defs>
+    <marker id="seta" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#37474f"/>
+    </marker>
+    <marker id="setaFalha" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#c62828"/>
+    </marker>
+    <marker id="setaSaida" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#2e7d32"/>
+    </marker>
+    <style>
+      .t     { font-size: 13px; fill: #263238; }
+      .tp    { font-size: 11.5px; fill: #546e7a; }
+      .cx    { font-size: 13px; font-weight: bold; fill: #1a1a1a; }
+      .band  { font-size: 15px; font-weight: bold; letter-spacing: 1.5px; }
+      .chip  { font-size: 11px; font-weight: bold; fill: #ffffff; }
+      .lbl   { font-size: 11.5px; fill: #37474f; }
+      .lblF  { font-size: 11.5px; fill: #c62828; font-weight: bold; }
+      .mono  { font-family: "DejaVu Sans Mono", Consolas, monospace; font-size: 11px; fill: #37474f; }
+      .box   { fill: #ffffff; stroke: #b0bec5; stroke-width: 1.4; rx: 6; }
+      .fio   { stroke: #37474f; stroke-width: 1.8; fill: none; marker-end: url(#seta); }
+      .fioF  { stroke: #c62828; stroke-width: 1.8; fill: none; stroke-dasharray: 6 4; marker-end: url(#setaFalha); }
+      .fioS  { stroke: #2e7d32; stroke-width: 1.8; fill: none; marker-end: url(#setaSaida); }
+    </style>
+  </defs>
+
+  <rect width="1500" height="1000" fill="#ffffff"/>
+
+  <text x="40" y="44" font-size="22" font-weight="bold" fill="#1a1a1a">Marco 2 — arquitetura da fronteira integrada</text>
+  <text x="40" y="68" class="tp">Grupo Internet das Coisos · monitoramento de sinais vitais por smart clothing · UFG / INF</text>
+
+  <!-- ================= FAIXAS ================= -->
+  <rect x="30"   y="96" width="530" height="838" fill="#f5f9fc" stroke="#cfd8dc" stroke-width="1.2" rx="10"/>
+  <rect x="588"  y="96" width="316" height="838" fill="#fbf7f2" stroke="#cfd8dc" stroke-width="1.2" rx="10"/>
+  <rect x="932"  y="96" width="536" height="838" fill="#f4faf5" stroke="#cfd8dc" stroke-width="1.2" rx="10"/>
+
+  <text x="52"   y="124" class="band" fill="#1565c0">PRODUTOR · ESP32 / Wokwi</text>
+  <text x="52"   y="142" class="tp">borda — decide localmente (Marco 1: estado e tempo)</text>
+
+  <text x="610"  y="124" class="band" fill="#d84315">COMUNICAÇÃO · MQTT</text>
+  <text x="610"  y="142" class="tp">broker público — middleware</text>
+
+  <text x="954"  y="124" class="band" fill="#2e7d32">CONSUMIDOR · serviço Python</text>
+  <text x="954"  y="142" class="tp">valida o contrato e produz efeito observável</text>
+
+  <!-- ================= PRODUTOR ================= -->
+  <!-- entradas -->
+  <rect x="56"  y="170" width="240" height="60" class="box"/>
+  <text x="68"  y="192" class="cx">Entrada substituta — FC</text>
+  <text x="68"  y="210" class="lbl">potenciômetro · GPIO 34 (ADC1)</text>
+  <text x="68"  y="224" class="tp">escala 0–250 bpm · sem valor clínico</text>
+
+  <rect x="310" y="170" width="234" height="60" class="box"/>
+  <text x="322" y="192" class="cx">Movimento</text>
+  <text x="322" y="210" class="lbl">MPU6050 · I²C GPIO 21/22</text>
+  <text x="322" y="224" class="tp">|a| ≈ 1 g → REST</text>
+
+  <path class="fio" d="M 176 230 L 176 258"/>
+  <path class="fio" d="M 427 230 L 427 250 L 300 250 L 300 258"/>
+
+  <!-- validação -->
+  <rect x="56"  y="262" width="488" height="56" class="box"/>
+  <text x="68"  y="284" class="cx">Validação</text>
+  <text x="68"  y="302" class="lbl">faixa válida 30–220 bpm · leitura ausente devolve NAN, nunca zero</text>
+
+  <path class="fio" d="M 300 318 L 300 344"/>
+
+  <!-- janela -->
+  <rect x="56"  y="348" width="488" height="66" class="box"/>
+  <text x="68"  y="370" class="cx">Janela deslizante e cobertura</text>
+  <text x="68"  y="388" class="lbl">buffers circulares: FC 60 s · MOV 30 s — avaliação a cada 15 s</text>
+  <text x="68"  y="404" class="lbl">cobertura mínima 70% · slot vazio conta como buraco</text>
+
+  <path class="fio" d="M 300 414 L 300 440"/>
+
+  <!-- regra -->
+  <rect x="56"  y="444" width="488" height="66" class="box"/>
+  <text x="68"  y="466" class="cx">Regra de decisão</text>
+  <text x="68"  y="484" class="lbl">FC média &gt; limiar <tspan class="mono">E</tspan> movimento em repouso</text>
+  <text x="68"  y="500" class="lbl">histerese 100/92 bpm · persistência 2 avaliações · tempo mín. 30 s</text>
+
+  <path class="fio" d="M 300 510 L 300 536"/>
+
+  <!-- estados -->
+  <rect x="56"  y="540" width="488" height="72" class="box"/>
+  <text x="68"  y="562" class="cx">Máquina de estados</text>
+  <rect x="68"  y="574" width="112" height="26" rx="4" fill="#90a4ae"/>
+  <text x="78"  y="591" class="chip">DESCONHECIDO</text>
+  <rect x="188" y="574" width="76" height="26" rx="4" fill="#2e7d32"/>
+  <text x="206" y="591" class="chip">NORMAL</text>
+  <rect x="272" y="574" width="84" height="26" rx="4" fill="#c62828"/>
+  <text x="288" y="591" class="chip">ATENCAO</text>
+  <rect x="364" y="574" width="168" height="26" rx="4" fill="#1565c0"/>
+  <text x="374" y="591" class="chip">DADOS_INSUFICIENTES</text>
+
+  <path class="fio" d="M 176 612 L 176 640"/>
+  <path class="fio" d="M 424 612 L 424 640"/>
+
+  <!-- atuação local e evento -->
+  <rect x="56"  y="644" width="240" height="62" class="box"/>
+  <text x="68"  y="666" class="cx">Atuação local</text>
+  <text x="68"  y="684" class="lbl">LED RGB · buzzer</text>
+  <text x="68"  y="698" class="tp">continua funcionando sem rede</text>
+
+  <rect x="310" y="644" width="234" height="62" class="box"/>
+  <text x="322" y="666" class="cx">Evento JSON</text>
+  <text x="322" y="684" class="mono">schemaVersion · eventId</text>
+  <text x="322" y="698" class="mono">sequence · state · reason</text>
+
+  <path class="fio" d="M 427 706 L 427 736"/>
+
+  <!-- fila local -->
+  <rect x="200" y="740" width="344" height="66" class="box" stroke="#c62828" stroke-dasharray="5 3"/>
+  <text x="212" y="762" class="cx" fill="#c62828">Fila local (12 eventos)</text>
+  <text x="212" y="780" class="lbl">enfileira quando o broker está ausente</text>
+  <text x="212" y="796" class="lbl">reenvia em ordem na reconexão</text>
+
+  <!-- nota -->
+  <rect x="56"  y="836" width="488" height="56" rx="6" fill="#eef4f8" stroke="#b0bec5" stroke-width="1"/>
+  <text x="68"  y="858" class="lbl">A desconexão interrompe a <tspan font-weight="bold">entrega</tspan>, não a <tspan font-weight="bold">decisão</tspan>.</text>
+  <text x="68"  y="878" class="tp">O estado continua evoluindo e a atuação local permanece ativa sem rede.</text>
+
+  <!-- ================= COMUNICAÇÃO ================= -->
+  <rect x="612" y="262" width="268" height="150" class="box" stroke="#d84315" stroke-width="1.8"/>
+  <text x="624" y="286" class="cx" fill="#d84315">Broker MQTT</text>
+  <text x="624" y="304" class="mono">broker.hivemq.com:1883</text>
+  <text x="624" y="326" class="lbl">aceita conexões · roteia por tópico</text>
+  <text x="624" y="342" class="lbl">mantém sessão · aplica políticas</text>
+  <text x="624" y="368" class="tp">o protocolo é MQTT;</text>
+  <text x="624" y="384" class="tp">o broker exerce a função de middleware</text>
+  <text x="624" y="404" class="tp">QoS 1 · entrega ao menos uma vez</text>
+
+  <!-- tópicos -->
+  <rect x="612" y="440" width="268" height="72" class="box"/>
+  <text x="624" y="462" class="cx">Tópico de telemetria</text>
+  <text x="624" y="482" class="mono">ufg/ssu/2026-2/</text>
+  <text x="624" y="496" class="mono">internet-das-coisos/…/state</text>
+
+  <rect x="612" y="528" width="268" height="86" class="box"/>
+  <text x="624" y="550" class="cx">Tópico de disponibilidade</text>
+  <text x="624" y="570" class="mono">…/status</text>
+  <text x="624" y="590" class="lbl">online publicado na conexão</text>
+  <text x="624" y="606" class="lblF">offline publicado pelo broker (Last Will)</text>
+
+  <rect x="612" y="640" width="268" height="72" rx="6" fill="#fdf3ec" stroke="#e0b9a0" stroke-width="1"/>
+  <text x="624" y="662" class="lbl">Publicação e assinatura desacoplam</text>
+  <text x="624" y="678" class="lbl">produtor e consumidor no espaço:</text>
+  <text x="624" y="696" class="tp">o ESP32 não conhece o destino.</text>
+
+  <!-- ligações produtor -> broker -->
+  <path class="fio" d="M 544 675 L 612 675 L 612 470"/>
+  <text x="556" y="666" class="lbl">publish</text>
+
+  <path class="fioF" d="M 544 773 L 580 773 L 580 490 L 610 490"/>
+  <text x="470" y="826" class="lblF">retry em ordem</text>
+
+  <!-- ================= CONSUMIDOR ================= -->
+  <path class="fio" d="M 880 476 L 956 476 L 956 200 L 986 200"/>
+  <text x="890" y="466" class="lbl">deliver</text>
+  <path class="fio" d="M 1212 230 L 1212 266"/>
+
+  <path class="fio" d="M 880 570 L 920 570 L 920 700 L 986 700"/>
+  <text x="890" y="560" class="lbl">status</text>
+
+  <rect x="986" y="170" width="452" height="60" class="box"/>
+  <text x="998" y="192" class="cx">Assinatura</text>
+  <text x="998" y="210" class="lbl">subscribe nos dois tópicos · QoS 1</text>
+  <text x="998" y="224" class="tp">reconecta automaticamente</text>
+
+  <rect x="986" y="270" width="452" height="62" class="box"/>
+  <text x="998" y="292" class="cx">Validação do contrato</text>
+  <text x="998" y="310" class="lbl">campos obrigatórios presentes?</text>
+  <text x="998" y="326" class="lblF">schemaVersion ≠ 1 → rejeita explicitamente</text>
+
+  <path class="fio" d="M 1212 332 L 1212 358"/>
+
+  <rect x="986" y="362" width="452" height="62" class="box"/>
+  <text x="998" y="384" class="cx">Deduplicação</text>
+  <text x="998" y="402" class="lbl">eventId já processado → descarta</text>
+  <text x="998" y="418" class="tp">repetir a entrega não repete o efeito</text>
+
+  <path class="fio" d="M 1212 424 L 1212 450"/>
+
+  <rect x="986" y="454" width="452" height="66" class="box"/>
+  <text x="998" y="476" class="cx">Ordem e perda</text>
+  <text x="998" y="494" class="lbl">sequence menor → chegada fora de ordem</text>
+  <text x="998" y="510" class="lbl">salto → eventos não recebidos</text>
+
+  <path class="fio" d="M 1212 520 L 1212 546"/>
+
+  <rect x="986" y="550" width="452" height="76" class="box" stroke="#2e7d32" stroke-width="1.8"/>
+  <text x="998" y="572" class="cx" fill="#2e7d32">Efeito observável</text>
+  <text x="998" y="592" class="lbl">painel: estado do paciente e do dispositivo</text>
+  <text x="998" y="608" class="lbl">alerta ao cuidador quando o estado é ATENCAO</text>
+  <text x="998" y="622" class="tp">log estruturado com a razão da transição</text>
+
+  <rect x="986" y="660" width="452" height="86" class="box"/>
+  <text x="998" y="682" class="cx">Disponibilidade do dispositivo</text>
+  <text x="998" y="702" class="lbl">online → dispositivo publicando</text>
+  <text x="998" y="718" class="lblF">offline → silêncio tornado visível</text>
+  <text x="998" y="736" class="tp">ausência de dado não é ausência de risco</text>
+
+  <!-- fora do escopo -->
+  <rect x="986" y="778" width="452" height="114" rx="6" fill="#f0f4f1" stroke="#b0bec5" stroke-width="1" stroke-dasharray="5 3"/>
+  <text x="998" y="800" class="cx" fill="#607d8b">Fora desta fronteira</text>
+  <text x="998" y="820" class="lbl">BLE entre vestimenta e smartphone</text>
+  <text x="998" y="838" class="lbl">aplicativo Android do cuidador</text>
+  <text x="998" y="856" class="lbl">histórico de longo prazo em nuvem</text>
+  <text x="998" y="874" class="lbl">watermark e política de eventos tardios</text>
+
+  <!-- ================= LEGENDA ================= -->
+  <line x1="40" y1="952" x2="90" y2="952" stroke="#37474f" stroke-width="1.8" marker-end="url(#seta)"/>
+  <text x="100" y="956" class="lbl">caminho normal</text>
+
+  <line x1="230" y1="952" x2="280" y2="952" stroke="#c62828" stroke-width="1.8" stroke-dasharray="6 4" marker-end="url(#setaFalha)"/>
+  <text x="290" y="956" class="lbl">caminho de falha e recuperação</text>
+
+  <text x="560" y="956" class="tp">Contrato versão 1 · eventTimeMs é millis(), não UTC · broker público sem autenticação nem TLS (limitação declarada)</text>
+</svg>

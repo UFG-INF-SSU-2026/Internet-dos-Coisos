@@ -1,0 +1,27 @@
+flowchart LR
+    subgraph P["PRODUTOR — ESP32 / Wokwi"]
+        A["entrada substituta<br/>FC (potenciômetro)"] --> V
+        B["MPU6050<br/>movimento"] --> V
+        V["validação<br/>faixa · ausência"] --> J
+        J["janela deslizante<br/>cobertura ≥ 70%"] --> R
+        R["regra<br/>histerese · persistência"] --> E
+        E["evento JSON<br/>schemaVersion 1"]
+        R --> AT["atuação local<br/>LED · buzzer"]
+    end
+
+    E --> F{"broker<br/>disponível?"}
+    F -- não --> Q["FILA LOCAL<br/>reenvio em ordem"]
+    Q -.-> F
+    F -- sim --> M
+
+    subgraph C["COMUNICAÇÃO — MQTT"]
+        M["broker<br/>.../state<br/>.../status (last will)"]
+    end
+
+    M --> S
+
+    subgraph K["CONSUMIDOR — serviço Python"]
+        S["validação do contrato<br/>schemaVersion · campos"] --> D
+        D["sequence<br/>duplicata · salto · ordem"] --> O
+        O["efeito observável<br/>painel de estado · alerta"]
+    end
