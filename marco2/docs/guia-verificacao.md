@@ -174,6 +174,74 @@ consumidor: on_message → json.loads → validar (campos, versão, duplicata)
             → checar sequence (salto / inversão) → atualizar painel → alerta se ATENCAO
 ```
 
+### 4.1 Os relógios — e por que um evento "demora" a entrar na fila
+
+Não existe tempo de espera para enfileirar. **Um evento só nasce quando o
+estado muda**, e a mudança de estado é gatilhada por relógios que não têm
+nada a ver com MQTT. Quando o MQTT está OFF, o evento vai para a fila no
+instante em que nasce — mas pode demorar a nascer, ou nunca nascer se nada
+mudar.
+
+| Relógio (`MODO_DEMO 1`) | Valor | O que faz |
+|---|---|---|
+| `PERIODO_AMOSTRAGEM_MS` | 1 s | lê potenciômetro e MPU, grava na janela |
+| `JANELA_FC_S` | 20 s | janela de FC: últimas 20 amostras |
+| `JANELA_MOV_S` | 10 s | janela de movimento: últimas 10 amostras |
+| `PASSO_AVALIACAO_MS` | 5 s | **só aqui** a regra roda e o estado pode mudar |
+| `COBERTURA_MINIMA` | 70 % | precisa de 14/20 amostras válidas de FC e 7/10 de movimento |
+| `AVALIACOES_PARA_ENTRAR` | 2 | condição de alerta tem que valer em 2 avaliações seguidas (10 s) |
+| `TEMPO_MINIMO_ESTADO_MS` | 10 s | fica pelo menos 10 s num estado antes de sair (exceto para `DADOS_INSUFICIENTES`) |
+| `FC_LIMIAR_ENTRADA` / `SAIDA` | 100 / 92 | histerese: entra em `ATENCAO` acima de 100, só sai abaixo de 92 |
+
+O MQTT entra **depois** que `transitarPara()` decide mudar: `emitirEvento()`
+monta o JSON, `publicar()` tenta enviar e, se OFF, `enfileirar()`. Zero
+espera.
+
+Linha do tempo de uma execução real (potenciômetro em 154 bpm desde o
+início, MPU em repouso):
+
+```
+t (s)   o que aconteceu                                            fila
+─────────────────────────────────────────────────────────────────────────
+ 5,4    MQTT conectado
+ 5–10   6 amostras gravadas
+10,4    AVALIAÇÃO 1: cobFc = 6/20 = 0,30 < 0,70
+        → DADOS_INSUFICIENTES  → evento seq=1  → publicado          0
+15,4    AVALIAÇÃO 2: cobFc = 11/20 = 0,55 < 0,70 → nada muda
+20,4    AVALIAÇÃO 3: cobFc = 16/20 = 0,80 ≥ 0,70 → janela válida
+        → NORMAL  → evento seq=2  → publicado                       0
+        condição de alerta (154 > 100 e REST) vale: persistência 1/2
+21,9    ▶ botão "falha broker"  → mqtt OFF                           0
+        (nenhum evento nasce aqui: o estado não mudou)
+25,4    AVALIAÇÃO 4: persistência 2/2 ✓
+        mas TEMPO_MINIMO: entrou em NORMAL há 5 s < 10 s → segura
+30,4    AVALIAÇÃO 5: persistência 3/2 ✓, em NORMAL há 10 s ✓
+        → ATENCAO  → evento seq=3  → publish falha → ENFILEIRADO     1
+35,4 …  avaliações seguintes: continua ATENCAO, nada novo             1
+53,5    ▶ botão de novo → esvazia a fila → seq=3 entregue             0
+```
+
+O evento entrou na fila 8,5 s depois do clique por causa do ciclo: a
+avaliação seguinte era em 25,4 s, mas o tempo mínimo em `NORMAL` empurrou
+para 30,4 s. Com o potenciômetro em 80 bpm o estado ficaria `NORMAL` para
+sempre e a fila em zero — **o botão não produz evento, só muda o destino
+dos eventos que a regra produzir.**
+
+Receita para enfileirar rápido e previsível na demo:
+
+1. Estar em `NORMAL` há pelo menos 10 s.
+2. Clicar no botão.
+3. Subir o potenciômetro acima de 100 bpm (MPU parado).
+4. Esperar duas avaliações (10 s simulados ≈ 30 s reais). Na segunda,
+   `ATENCAO` → `enfileirado (1 na fila)`.
+
+Ou o inverso a partir de `ATENCAO`: clicar, baixar **abaixo de 92** (não
+basta abaixo de 100 — histerese), e na primeira avaliação após 10 s em
+`ATENCAO` sai para `NORMAL` → enfileirado.
+
+Multiplicar tudo por ~3 para tempo real: cada avaliação de 5 s leva ~15 s
+no relógio da parede. A demo parece lenta por causa do Wokwi, não da fila.
+
 Três coisas para deixar claras:
 
 1. **A decisão é local.** O ESP32 decide `NORMAL`/`ATENCAO` sozinho. A rede
@@ -456,6 +524,12 @@ Não sei pelo transporte (QoS 0). Sei pelo consumidor: ele exibe, e checa
 O produtor continua decidindo e atuando; os eventos vão para a fila; ao
 reconectar, reenvia em ordem. A desconexão interrompe a entrega, não a
 decisão.
+
+**"Por que demorou para enfileirar depois do botão?"**
+Porque não havia evento para enfileirar. Evento só nasce em mudança de
+estado, e a mudança depende da avaliação (5 s), da persistência (2
+avaliações) e do tempo mínimo no estado (10 s). O botão não gera evento;
+muda o destino do próximo. Ver §4.1.
 
 **"O botão derruba o broker de verdade?"**
 Não. Ele faz o `publish` falhar, que é onde uma queda real aparece para o
