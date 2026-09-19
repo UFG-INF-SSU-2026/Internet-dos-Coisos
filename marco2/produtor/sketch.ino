@@ -73,7 +73,11 @@ const uint8_t PINO_LED_B  = 27;
 const uint8_t PINO_BUZZER = 4;
 
 const uint32_t PERIODO_AMOSTRAGEM_MS = 1000;
-const uint32_t RETENTATIVA_MQTT_MS   = 3000;
+
+// mqtt.connect() do PubSubClient e sincrono: quando o broker nao responde,
+// cada tentativa bloqueia o loop por ate ~10 s. O intervalo entre tentativas
+// e longo para que amostragem e decisao continuem entre uma e outra.
+const uint32_t RETENTATIVA_MQTT_MS   = 15000;
 
 // O Wokwi roda mais devagar que o tempo real com WiFi ativo: 15 s de millis()
 // podem levar mais de 22 s reais. Com o keepalive padrao do PubSubClient
@@ -134,9 +138,12 @@ bool     alertaAtivo        = false;
 char     fila[FILA_TAMANHO][320];
 uint8_t  filaInicio = 0, filaFim = 0, filaCheia = 0;
 
-// Falha simulada: o botao "falha broker" (ou 'f' no monitor serial) derruba
-// a conexao e impede a reconexao ate o proximo acionamento. Serve para
-// exercitar a fila na demonstracao.
+// Falha simulada: o botao "falha broker" (ou 'f' no monitor serial) faz o
+// produtor tratar toda publicacao como falha - o evento vai para a fila -
+// ate o proximo acionamento. A conexao TCP e mantida de proposito: no Wokwi
+// a reconexao apos um disconnect() do cliente nem sempre funciona, e a
+// tentativa bloqueia o loop. A falha REAL de rede segue tratada pelo mesmo
+// caminho (publish falha -> fila -> reenvio na reconexao).
 bool     falhaSimulada = false;
 
 
@@ -251,7 +258,7 @@ uint8_t filaTamanho() {
 }
 
 void esvaziarFila() {
-  while (filaTamanho() > 0 && mqtt.connected()) {
+  while (filaTamanho() > 0 && !falhaSimulada && mqtt.connected()) {
     if (!mqtt.publish(TOPICO_STATE, fila[filaInicio])) break;
     Serial.printf("[%lu] fila: reenviado (%u restantes)\n",
                   millis(), (unsigned)(filaTamanho() - 1));
@@ -261,7 +268,7 @@ void esvaziarFila() {
 }
 
 void publicar(const char* payload) {
-  if (mqtt.connected() && mqtt.publish(TOPICO_STATE, payload)) {
+  if (!falhaSimulada && mqtt.connected() && mqtt.publish(TOPICO_STATE, payload)) {
     Serial.printf("[%lu] mqtt: publicado em %s\n", millis(), TOPICO_STATE);
   } else {
     enfileirar(payload);
@@ -273,10 +280,10 @@ void publicar(const char* payload) {
 void alternarFalhaSimulada() {
   falhaSimulada = !falhaSimulada;
   if (falhaSimulada) {
-    mqtt.disconnect();
-    Serial.printf("[%lu] FALHA SIMULADA: broker indisponivel (acione de novo para restaurar)\n", millis());
+    Serial.printf("[%lu] FALHA SIMULADA: broker indisponivel - publicacoes vao para a fila (acione de novo para restaurar)\n", millis());
   } else {
-    Serial.printf("[%lu] falha simulada encerrada - reconectando\n", millis());
+    Serial.printf("[%lu] falha simulada encerrada - broker disponivel, esvaziando fila\n", millis());
+    esvaziarFila();
   }
 }
 
@@ -299,7 +306,6 @@ void lerComandoSerial() {
 }
 
 void conectarMqtt() {
-  if (falhaSimulada) return;
   if (WiFi.status() != WL_CONNECTED) return;
   if ((int32_t)(millis() - proximaTentativaMs) < 0) return;
   proximaTentativaMs = millis() + RETENTATIVA_MQTT_MS;
@@ -513,6 +519,6 @@ void loop() {
     Serial.printf(" mov=%s estado=%s persistencia=%u/%u mqtt=%s fila=%u\n",
                   nomeMovimento(mov), nomeEstado(estadoAtual),
                   avaliacoesCondicao, AVALIACOES_PARA_ENTRAR,
-                  mqtt.connected() ? "ON" : "OFF", filaTamanho());
+                  (mqtt.connected() && !falhaSimulada) ? "ON" : "OFF", filaTamanho());
   }
 }

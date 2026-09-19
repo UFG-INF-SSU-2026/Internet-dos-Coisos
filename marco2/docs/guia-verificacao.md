@@ -255,9 +255,32 @@ O que acontece dentro do produtor quando `mqtt.publish()` falha:
 No consumidor: os eventos chegam atrasados mas com `sequence` contínuo. Sem
 aviso de salto. **A desconexão interrompeu a entrega, não a decisão.**
 
-Como demonstrar: botão vermelho "falha broker" (GPIO 13) → `mqtt.disconnect()`
-e bloqueio de reconexão. Mesmo efeito de o broker sumir, do ponto de vista do
-código do produtor.
+Como demonstrar: botão vermelho "falha broker" (GPIO 13) → `falhaSimulada`
+faz `publicar()` pular o `publish` e ir direto para `enfileirar()`. É o mesmo
+caminho que o código segue quando `mqtt.publish()` devolve `false` com o
+broker fora. A conexão TCP fica de pé de propósito (ver §6.5).
+
+Se perguntarem *"mas o broker não caiu de verdade"*: correto. A simulação
+intercepta no ponto onde a falha real se manifesta para o código — o retorno
+do `publish`. O que se demonstra é a **política** do produtor diante da
+falha: guardar, continuar decidindo, reenviar em ordem. A queda real da
+conexão foi observada quando o *keepalive* estourava (§3.6), e o produtor
+reconectou sozinho.
+
+### 6.5 O que aprendemos tentando derrubar o socket
+
+A primeira versão do botão chamava `mqtt.disconnect()`. Resultado no Wokwi:
+
+- a reconexão falhou seis vezes seguidas (`rc=-2`, TCP `connect` recusado),
+  possivelmente por o simulador não liberar o socket, possivelmente por
+  instabilidade do HiveMQ público naquele momento (o consumidor também caiu);
+- cada tentativa bloqueou o loop por ~10 s — sem amostra, sem avaliação.
+  `mqtt.connect()` do `PubSubClient` é **síncrono**.
+
+Isso é uma limitação honesta para declarar: com o broker realmente fora, o
+produtor decide entre as tentativas, não durante. `RETENTATIVA_MQTT_MS` foi
+elevado a 15 s por isso. Uma versão real usaria cliente assíncrono ou uma
+tarefa separada para a rede.
 
 ### 6.2 Silêncio do dispositivo (segunda condição)
 
@@ -367,14 +390,16 @@ de novo (segundos). Se puderem escolher, mostrem a alteração no consumidor.
    Consumidor: `dispositivo: ONLINE`.
 3. **Estado inicial.** Aguardar `DADOS_INSUFICIENTES` (janela vazia) →
    `NORMAL` (janela cheia). Apontar `seq=1`, `seq=2`, `reason`.
-4. **Alerta.** Potenciômetro acima de 100 bpm, MPU em repouso (Z = 1 g).
-   Duas avaliações depois: `ATENCAO`, LED vermelho, buzzer, consumidor
-   mostra `>>> ALERTA AO CUIDADOR`.
-5. **Falha.** Clicar "falha broker". Serial: `FALHA SIMULADA`, `mqtt=OFF`.
-   Baixar o potenciômetro. Serial: `NORMAL`, `evento enfileirado (1 na fila)`.
-   LED verde. Consumidor: nada.
-6. **Recuperação.** Clicar de novo. Serial: `mqtt: conectado`,
-   `fila: reenviado (0 restantes)`. Consumidor: evento chega, `seq` contínuo.
+4. **Falha.** Ainda em `NORMAL`, clicar "falha broker". Serial:
+   `FALHA SIMULADA`, `mqtt=OFF`. Consumidor: nada muda.
+5. **Alerta durante a falha.** Potenciômetro acima de 100 bpm, MPU em
+   repouso (Z = 1 g). Duas avaliações depois: `ATENCAO`, LED vermelho,
+   buzzer — e no serial `evento enfileirado (1 na fila)`. Consumidor:
+   **continua em NORMAL**. Esse é o momento de dizer: "o dispositivo já
+   decidiu e já alertou localmente; o que falta é a entrega".
+6. **Recuperação.** Clicar de novo. Serial: `esvaziando fila`,
+   `fila: reenviado (0 restantes)`. Consumidor: chega `seq=3`, `ATENCAO`,
+   `>>> ALERTA AO CUIDADOR`, sem aviso de salto.
 7. **Silêncio.** Parar a simulação. Até 60 s depois: consumidor mostra
    `OFFLINE (last will)`.
 8. **Encerrar** o consumidor com `Ctrl+C` (encerra limpo).
@@ -397,6 +422,8 @@ a lado na tela.
 - FC é potenciômetro. Nada tem valor clínico.
 - A simulação roda a 30% do tempo real; o keepalive precisou ser ajustado
   por isso. Timing do Wokwi não valida timing do mundo.
+- Reconexão síncrona: com o broker realmente fora, cada tentativa bloqueia
+  o loop por ~10 s. A falha simulada não passa por esse caminho.
 
 ---
 
@@ -429,6 +456,12 @@ Não sei pelo transporte (QoS 0). Sei pelo consumidor: ele exibe, e checa
 O produtor continua decidindo e atuando; os eventos vão para a fila; ao
 reconectar, reenvia em ordem. A desconexão interrompe a entrega, não a
 decisão.
+
+**"O botão derruba o broker de verdade?"**
+Não. Ele faz o `publish` falhar, que é onde uma queda real aparece para o
+código. Tentamos derrubar o socket: no Wokwi a reconexão falhou e a
+tentativa síncrona travava o loop. Preferimos demonstrar a política de
+falha de forma confiável e declarar a limitação da reconexão.
 
 **"E se o consumidor cair?"**
 O produtor nem percebe. Os eventos publicados nesse intervalo se perdem

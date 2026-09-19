@@ -71,22 +71,26 @@ O monitor serial deve mostrar `WiFi conectado` e `mqtt: conectado`.
 
 **Broker indisponível.**
 
-Para demonstrar: com a integração funcionando, clique no botão vermelho **"falha broker"** (GPIO 13) no diagrama do Wokwi. O produtor fecha a conexão com o broker e não reconecta até o próximo clique — o mesmo efeito, do ponto de vista do código, de o broker sair do ar. Em seguida provoque uma transição (por exemplo, baixe o potenciômetro para sair de `ATENCAO`). O monitor serial passa a mostrar:
+Para demonstrar: com a integração funcionando, clique no botão vermelho **"falha broker"** (GPIO 13) no diagrama do Wokwi. A partir daí o produtor trata toda publicação como falha — exatamente o caminho que `publish()` seguiria com o broker fora do ar — até o próximo clique. Em seguida provoque uma transição (por exemplo, suba o potenciômetro acima de 100 bpm para entrar em `ATENCAO`). O monitor serial passa a mostrar:
 
 ```
-FALHA SIMULADA: broker indisponivel (acione de novo para restaurar)
+FALHA SIMULADA: broker indisponivel - publicacoes vao para a fila
 mqtt: INDISPONIVEL - evento enfileirado (1 na fila)
+... mqtt=OFF fila=1
 ```
 
-O produtor **continua amostrando, avaliando a janela e transitando de estado**. O LED e o buzzer seguem funcionando. O consumidor não recebe nada nesse intervalo. Clique no botão de novo: o produtor reconecta e esvazia a fila em ordem:
+O produtor **continua amostrando, avaliando a janela e transitando de estado**. O LED e o buzzer seguem funcionando. O consumidor não recebe nada nesse intervalo. Clique no botão de novo: o produtor esvazia a fila em ordem:
 
 ```
+falha simulada encerrada - broker disponivel, esvaziando fila
 fila: reenviado (0 restantes)
 ```
 
 No consumidor o evento chega com o `sequence` correto, sem salto. A desconexão interrompe a entrega, não a decisão.
 
 Teclar `f` com o monitor serial em foco faz o mesmo que o botão.
+
+> **Por que a simulação não derruba o socket.** A primeira versão do botão chamava `mqtt.disconnect()`. No Wokwi a reconexão seguinte falhou repetidamente (`rc=-2`, TCP `connect` recusado) e, pior, cada tentativa do `PubSubClient` bloqueou o loop por ~10 s — sem amostra, sem decisão. A simulação agora intercepta no `publish`, que é onde a falha real de rede também aparece para o código; o caminho de reconexão continua existindo para quedas reais (foi ele que reconectou o dispositivo quando o *keepalive* estourava). O bloqueio da reconexão síncrona é uma limitação conhecida da biblioteca; `RETENTATIVA_MQTT_MS` foi elevado a 15 s para que o loop respire entre tentativas.
 
 > Parar o consumidor **não** exercita essa falha: o produtor continua conectado ao broker e publica normalmente; quem perde os eventos é o consumidor, que ao voltar verá um salto na sequência. Isso também é observável, mas é outra condição.
 
@@ -129,6 +133,7 @@ A comparação entre os protótipos individuais do Marco 1, com o que foi preser
 - A entrada de frequência cardíaca é **substituta** (potenciômetro). Não há aquisição de sinal fisiológico real e nenhuma saída tem valor clínico.
 - Broker público, sem autenticação nem TLS. Uma versão real exigiria credenciais, autorização por tópico e canal cifrado.
 - BLE, aplicativo Android e histórico em nuvem permanecem fora desta fronteira.
+- `mqtt.connect()` do `PubSubClient` é síncrono: com o broker fora do ar, cada tentativa de reconexão bloqueia o loop por até ~10 s. Entre tentativas (15 s) o produtor amostra e decide normalmente. Uma versão real usaria cliente assíncrono ou tarefa separada.
 
 ---
 
