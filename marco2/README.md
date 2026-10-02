@@ -65,9 +65,88 @@ O monitor serial deve mostrar `WiFi conectado` e `mqtt: conectado`.
 
 - MPU6050: X = 0, Y = 0, Z = 1 g (repouso).
 - Potenciômetro: acima de 100 bpm.
-- Aguarde a janela encher. O consumidor recebe `NORMAL` e depois `ATENCAO`.
+- Aguarde a janela encher. O consumidor recebe, nesta ordem:
+  1. `DESCONHECIDO → DADOS_INSUFICIENTES` (`sequence` 1, razão `cobertura_insuficiente`): na primeira avaliação a janela ainda está quase vazia;
+  2. `DADOS_INSUFICIENTES → NORMAL` (razão `janela_com_cobertura`): a cobertura passou de 70% e ainda não houve persistência;
+  3. `NORMAL → ATENCAO` (razão `condicao_persistiu`): FC média acima de 100 bpm em repouso por 2 avaliações seguidas e pelo menos 10 s em `NORMAL`.
 
 > **Tópico compartilhado.** O broker é público, então o prefixo `ufg/ssu/2026-2/internet-das-coisos` identifica o grupo e evita receber publicações de terceiros. Ele precisa ser idêntico em `sketch.ino` e `consumidor.py`.
+
+---
+
+## Caminho do dado: o que fica em cada lado
+
+### Fluxo
+
+```
+PRODUTOR (ESP32)                                       BROKER            CONSUMIDOR (Python)
+─────────────────────────────────────────────────      ──────────        ───────────────────
+potenciômetro ─┐
+               ├─▶ leitura + validação (1/s)
+MPU6050 ───────┘     OK | FORA_DE_FAIXA | AUSENTE
+                         │
+                         ▼
+               janela circular (FC 20 s, MOV 10 s)
+                         │  a cada 5 s
+                         ▼
+               cobertura ≥ 70%? ──não──▶ DADOS_INSUFICIENTES
+                         │ sim
+                         ▼
+               regra + histerese + persistência
+                         │  só quando o estado MUDA
+                         ▼
+               LED / buzzer  +  evento JSON (sequence++)
+                         │
+               publish ok? ──sim───────────────▶  .../state  ──▶  valida → dedup → sequence
+                         │ não                                       → painel / alerta
+                         ▼
+               fila local (12 eventos) ──reconexão──▶ .../state
+```
+
+Amostra bruta **nunca sai do ESP32**. O que atravessa a fronteira é só o evento de mudança de estado, com a média e as coberturas que justificaram a decisão. Se nada muda, nada é publicado.
+
+### Dados suficientes (cobertura)
+
+Fica **no produtor**, antes da regra. A cada segundo cada leitura entra na janela marcada como válida ou não:
+
+| Leitura inválida quando | FC | Movimento |
+|---|---|---|
+| botão "silenciar" pressionado | `AUSENTE` | `INVALIDO` |
+| fora da faixa plausível | < 30 ou > 220 bpm | > 8 g |
+| sensor não respondeu | — | MPU ausente ou falha de leitura |
+
+Na avaliação, cobertura = posições válidas ÷ tamanho da janela. As **duas** precisam ser ≥ `COBERTURA_MINIMA` (0,70): no modo demo, 14 de 20 amostras de FC e 7 de 10 de movimento. A média de FC usa só as válidas.
+
+- Abaixo do mínimo, o estado vai para `DADOS_INSUFICIENTES` **imediatamente** (sem tempo mínimo no estado) e a contagem de persistência zera. LED azul.
+- O buzzer **não** é desligado nessa transição: se o paciente estava em `ATENCAO`, o alerta continua. Perder o sensor não prova que o risco passou; só `NORMAL` desliga o alerta.
+- Ao ligar, a janela começa vazia, então a primeira avaliação emite `DESCONHECIDO → DADOS_INSUFICIENTES` (`sequence` 1). O estado só sai daí quando a janela acumula leituras válidas suficientes; por isso é preciso "aguardar a janela encher" antes de ver `NORMAL`.
+- O consumidor não recalcula cobertura. Ele recebe `coverageFc`/`coverageMov` no evento e apenas os exibe.
+
+### Fila
+
+Fica **no produtor**, porque é lá que a decisão é tomada e lá que o evento nasce. `publicar()` tenta o `publish`; se o cliente estiver desconectado, o `publish` falhar ou a falha simulada estiver ativa, o JSON pronto vai para a fila.
+
+- Buffer circular de `FILA_TAMANHO` = 12 eventos × 320 bytes (~3,8 KB de RAM).
+- Guarda **eventos**, não amostras: 12 transições de estado, não 12 segundos.
+- Cheia, descarta o **mais antigo**. O consumidor percebe a perda pelo salto de `sequence` (`AVISO salto na sequencia`).
+- É esvaziada em ordem (FIFO) na reconexão, ao encerrar a falha simulada e a cada volta do `loop` com o cliente conectado. Se um reenvio falhar, para e tenta de novo depois, sem pular nenhum.
+- O evento reenviado é o mesmo JSON de quando foi gerado: `eventTimeMs` marca quando a decisão foi tomada, não quando chegou.
+
+### Armazenamento
+
+Ninguém grava em disco. Tudo é memória volátil:
+
+| Onde | O que guarda | Perde quando |
+|---|---|---|
+| **Produtor** (RAM do ESP32) | janelas de FC e movimento, estado atual e desde quando, contador de persistência, `sequence`, fila | reinicia a simulação |
+| **Broker** | apenas a última mensagem *retained* de `.../status` (`online`/`offline`) e o *last will* registrado. Eventos de `.../state` **não** ficam guardados (sem *retain*, QoS 0 na publicação) | — |
+| **Consumidor** (memória do processo) | último `sequence`, conjunto de `eventId` já processados, estado e disponibilidade exibidos, contadores | o script é encerrado |
+
+Consequências diretas:
+
+- **Consumidor fora do ar:** o broker não segura os eventos de `state` para ele. Ao voltar, recebe imediatamente o `status` retido, mas as transições perdidas só aparecem como salto de `sequence` no próximo evento.
+- **Produtor reiniciado com o consumidor rodando:** `sequence` volta a 1 e o `eventId` (`esp32-borda-01-<sequence>`) se repete. O consumidor rejeita esses eventos como `duplicado` até o `sequence` passar do último visto. Para uma demonstração limpa, reinicie também o consumidor. Uma versão real incluiria um identificador de inicialização (*boot id*) no `eventId`.
+- `ids_processados` cresce sem limite enquanto o consumidor roda. Basta para a demonstração; uma versão real manteria só uma janela recente de identificadores ou persistiria o último `sequence` por dispositivo.
 
 ---
 
