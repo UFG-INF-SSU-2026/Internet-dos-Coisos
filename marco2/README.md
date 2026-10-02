@@ -50,6 +50,10 @@ Deve aparecer `conectado a broker.hivemq.com` e `aguardando eventos...`.
 
 ### 2. Produtor
 
+**Simulação pronta no Wokwi:** https://wokwi.com/projects/476807564770058241 — basta abrir e iniciar a simulação.
+
+Para montar do zero:
+
 1. Abra um projeto ESP32 no Wokwi.
 2. Cole `produtor/diagram.json` na aba do diagrama e `produtor/sketch.ino` na aba do código.
 3. Adicione as bibliotecas de `produtor/libraries.txt` (PubSubClient, Adafruit MPU6050, Adafruit Unified Sensor, Adafruit BusIO).
