@@ -203,7 +203,13 @@ void atualizarAtuacao(uint32_t agora) {
   if (atencao)     digitalWrite(PINO_LED, HIGH);
   else if (normal) digitalWrite(PINO_LED, LOW);
   else             digitalWrite(PINO_LED, (agora / 500) % 2);   // piscando
-  digitalWrite(PINO_BUZZER, atencao && !buzzerSilenciado);
+  // O buzzer e piezo: so soa com onda quadrada (tone), nao com nivel fixo (digitalWrite).
+  static bool tocando = false;
+  bool tocar = atencao && !buzzerSilenciado;
+  if (tocar != tocando) {
+    if (tocar) tone(PINO_BUZZER, 1000); else noTone(PINO_BUZZER);
+    tocando = tocar;
+  }
 }
 
 /* == 6. FALHA SIMULADA (botao vermelho ou tecla 'f') ===================== */
