@@ -16,6 +16,8 @@
 | Autorização das mensagens | A API confere os vínculos `esp32-borda-01 → patient-0042 → cuidador01` (403 se não bater). |
 | Novo ciclo produtor-consumidor | **Ciclo 2:** o cuidador (consumidor no Marco 2) produz o comando "reconhecer alerta"; o ESP32 consome, silencia o buzzer e confirma. |
 
+**Simulação no Wokwi:** <https://wokwi.com/projects/478071248037862401>. O projeto salvo tem o `config.h` de exemplo, sem a chave: para rodar, cole nele o `config.h` gerado (seção 4) e **não salve** com a chave real.
+
 Decisões e o motivo de cada uma: [`docs/decisoes.md`](docs/decisoes.md). Roteiro da apresentação: [`docs/roteiro-apresentacao.md`](docs/roteiro-apresentacao.md).
 
 ## 2. Arquitetura
