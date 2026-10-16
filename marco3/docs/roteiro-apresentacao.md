@@ -41,7 +41,7 @@ Cada mudança de estado leva **~10 s** para aparecer: fale enquanto espera.
 
 1. **Autenticação × autorização?** Autenticação = quem é você (chave / senha). Autorização = você pode fazer isso (vínculos). No código: `dispositivo_autenticado` × `dispositivo_autorizado`.
 2. **Por que o ESP32 usa chave e não senha?** É uma máquina; não digita senha nem mantém sessão de navegador.
-3. **Onde fica a chave?** `api/.env` e `produtor/config.h`, gerados por `gerar_config.py`, fora do GitHub (`.gitignore`).
+3. **Onde fica a chave?** Em `produtor/config.h` (ESP32), copiada para `api/.env` (API) por `gerar_config.py`. Está no repositório de propósito: é uma chave fixa de demonstração (D11). Em produção ficaria fora do git, uma por dispositivo. A senha do cuidador não vai para o git.
 4. **Quem captura o tráfego vê a chave?** Não: só a assinatura trafega, e dela não se tira a chave. As leituras, sim, podem ser lidas (sem HTTPS no Wokwi).
 5. **Por que não HTTPS?** Testamos: no Wokwi nenhum HTTPS completa (nem com o Google, nem sem validar certificado), e HTTP simples funciona. Em hardware real, voltaríamos ao HTTPS mantendo a assinatura (D17).
 5b. **E se alguém capturar e reenviar uma mensagem?** O horário vai dentro da assinatura: depois de 120 s a API recusa; dentro disso, lote repetido é ignorado pelo `loteId`.

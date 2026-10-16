@@ -1,5 +1,10 @@
-"""Prepara credenciais locais de DEMONSTRACAO, sem dependencia de Neon."""
+"""Prepara o api/.env de DEMONSTRACAO.
 
+A chave do dispositivo e fixa e versionada em produtor/config.h (decisao D11):
+este script so a copia para o .env, para API e ESP32 usarem a mesma.
+"""
+
+import re
 import secrets
 from pathlib import Path
 import hashlib
@@ -10,12 +15,15 @@ CONFIG_ESP32 = BASE.parent / 'produtor' / 'config.h'
 
 
 def main():
-    if ENV.exists() or CONFIG_ESP32.exists():
-        print('Configuracao ja existe. Para preservar credenciais, nada foi alterado.')
-        print('Se precisar recriar, exclua manualmente api/.env e produtor/config.h.')
+    if ENV.exists():
+        print('api/.env ja existe. Para preservar a senha, nada foi alterado.')
+        print('Se precisar recriar, exclua manualmente api/.env.')
         return
 
-    device_key = secrets.token_urlsafe(32)
+    achou = re.search(r'DEVICE_API_KEY = "([^"]+)"', CONFIG_ESP32.read_text(encoding='utf-8'))
+    if not achou:
+        raise SystemExit('Nao encontrei DEVICE_API_KEY em produtor/config.h')
+    device_key = achou.group(1)
     app_secret = secrets.token_urlsafe(40)
     senha = secrets.token_urlsafe(10)
     salt = secrets.token_bytes(16)
@@ -31,26 +39,16 @@ def main():
         f'COOKIE_SECURE=0\n',
         encoding='utf-8',
     )
-    CONFIG_ESP32.write_text(
-        '#pragma once\n'
-        '// NAO publique este arquivo (GitHub ou Wokwi publico): contem a chave do ESP32.\n'
-        '// Troque a URL abaixo pela que o comando "cloudflared tunnel --url http://127.0.0.1:5000"\n'
-        '// mostrar, usando http:// (o Wokwi nao completa HTTPS; as mensagens vao assinadas).\n'
-        'const char* API_BASE_URL = "http://COLE-AQUI-A-URL-DO-TUNEL.trycloudflare.com";\n'
-        f'const char* DEVICE_API_KEY = "{device_key}";\n',
-        encoding='utf-8',
-    )
     try:
         ENV.chmod(0o600)
-        CONFIG_ESP32.chmod(0o600)
     except OSError:
         pass
-    print('Arquivos criados: api/.env e produtor/config.h')
+    print('Arquivo criado: api/.env (chave do dispositivo copiada de produtor/config.h)')
     print('Guarde esta senha: ela so sera exibida agora.')
     print('Usuario: cuidador01')
     print(f'Senha: {senha}')
-    print('Nao publique .env nem config.h no GitHub.')
-    print('Proximo passo: inicie a API e o tunel e cole a URL em produtor/config.h (com http://)')
+    print('Nao publique o .env no GitHub (senha e segredo da sessao).')
+    print('Proximo passo: inicie a API e o tunel e troque a URL em config.h no Wokwi (com http://)')
 
 
 if __name__ == '__main__':

@@ -16,7 +16,7 @@
 | Autorização das mensagens | A API confere os vínculos `esp32-borda-01 → patient-0042 → cuidador01` (403 se não bater). |
 | Novo ciclo produtor-consumidor | **Ciclo 2:** o cuidador (consumidor no Marco 2) produz o comando "reconhecer alerta"; o ESP32 consome, silencia o buzzer e confirma. |
 
-**Simulação no Wokwi:** <https://wokwi.com/projects/478071248037862401>. O projeto salvo tem o `config.h` de exemplo, sem a chave: para rodar, cole nele o `config.h` gerado (seção 4) e **não salve** com a chave real.
+**Simulação no Wokwi:** <https://wokwi.com/projects/478071248037862401>. O projeto já tem a chave fixa de demonstração: para rodar, basta trocar a URL do túnel no `config.h` (seção 4).
 
 Decisões e o motivo de cada uma: [`docs/decisoes.md`](docs/decisoes.md). Roteiro da apresentação: [`docs/roteiro-apresentacao.md`](docs/roteiro-apresentacao.md).
 
@@ -62,7 +62,7 @@ Exemplos de mensagens: [`contrato/leituras-v3.json`](contrato/leituras-v3.json) 
 
 ```text
 marco3/
-├── produtor/  sketch.ino, diagram.json, libraries.txt, config.exemplo.h
+├── produtor/  sketch.ino, diagram.json, libraries.txt, config.h (chave fixa de demonstração)
 ├── api/       app.py, regra.py, gerar_config.py, requirements*.txt, .env.exemplo, templates/
 ├── contrato/  leituras-v3.json, comando-v1.json
 ├── docs/      decisoes.md, roteiro-apresentacao.md, arquitetura.mmd
@@ -84,17 +84,17 @@ python gerar_config.py
 winget install --id Cloudflare.cloudflared
 ```
 
-- `gerar_config.py` cria `api/.env` (servidor) e `produtor/config.h` (ESP32) com **a mesma chave** do dispositivo.
+- `gerar_config.py` cria o `api/.env` (servidor), copiando a **chave fixa do dispositivo** de `produtor/config.h` (decisão D11), e sorteia a senha do cuidador.
 - Ele mostra a senha do cuidador **uma única vez** (usuário `cuidador01`). **Anote.**
-- Esses dois arquivos não vão para o GitHub. Para gerar de novo, apague os dois e rode o script outra vez.
+- O `api/.env` não vai para o GitHub (tem a senha). Para gerar de novo, apague-o e rode o script outra vez.
 - Depois do `winget`, **feche e reabra** o terminal.
 
 Montar o projeto no Wokwi (uma vez):
 
 1. Em wokwi.com, **New Project → ESP32** (Arduino).
 2. Substitua o conteúdo de `sketch.ino` e `diagram.json` pelos de `marco3/produtor/`.
-3. Crie (botão **+** / *New file*) os arquivos `libraries.txt` e `config.h`, colando o conteúdo de `marco3/produtor/` (o `config.h` é o **gerado** pelo script).
-4. Salve o projeto como **privado** (o `config.h` contém a chave).
+3. Crie (botão **+** / *New file*) os arquivos `libraries.txt` e `config.h`, colando o conteúdo de `marco3/produtor/`. Ou simplesmente abra o projeto já pronto (link no topo).
+4. Salve o projeto.
 
 ### 4.2 A cada demonstração (~2 min)
 
@@ -114,11 +114,11 @@ Use `127.0.0.1`, não `localhost` (no Windows, `localhost` pode ir para IPv6). A
 |---|---|
 | `Execute primeiro: python gerar_config.py` | falta o `api/.env`: rode o passo 4.1 |
 | Serial: `HTTP -1` | API ou túnel fechados, URL errada/antiga no `config.h`, URL com `https://` (use `http://`), ou falha simulada ligada (botão vermelho / tecla `f`) |
-| Serial: `HTTP 401` | `config.h` do Wokwi com chave diferente do `api/.env` (gere os dois de novo juntos), ou serial mostrou `NTP ... sem horario` (a assinatura leva o horário) |
+| Serial: `HTTP 401` | `config.h` do Wokwi com chave diferente do `api/.env` (apague o `.env` e rode `gerar_config.py` de novo), ou serial mostrou `NTP ... sem horario` (a assinatura leva o horário) |
 | Serial: `HTTP 403` | `DEVICE_ID`/`ENTITY_ID` do sketch diferentes do `.env` |
 | Serial: `ATENCAO: cole em config.h a URL` | `API_BASE_URL` ainda é o texto de exemplo |
 | Painel fica em `SEM DADOS` | nenhum lote chegou: olhe o serial do Wokwi |
-| Esqueci a senha | apague `api/.env` e `produtor/config.h`, rode `gerar_config.py` e cole o novo `config.h` no Wokwi |
+| Esqueci a senha | apague `api/.env` e rode `gerar_config.py` de novo (a chave do ESP32 não muda) |
 
 ## 5. O que observar na demonstração
 
