@@ -130,7 +130,7 @@ Use `127.0.0.1`, não `localhost` (no Windows, `localhost` pode ir para IPv6). A
 | Potenciômetro acima de 100 bpm, MPU parado | Em ~10 s: painel `ATENCAO`, LED aceso, buzzer |
 | Clicar "Reconhecer alerta" | `PENDENTE → ENTREGUE → EXECUTADO`; buzzer silencia, LED continua aceso |
 | Potenciômetro abaixo de 92 bpm | Em ~10 s volta a `NORMAL`, LED apaga |
-| Segurar o botão verde (sensor desconectado) | Em poucos segundos `DADOS_INSUFICIENTES`, LED piscando |
+| Potenciômetro no mínimo (abaixo de 30 bpm = leitura inválida) | Em poucos segundos `DADOS_INSUFICIENTES`, LED piscando |
 | Botão vermelho / tecla `f` (rede caiu) | Em ~10 s, painel: `DADOS_INSUFICIENTES` e "sem contato recente". ESP32: `MODO LOCAL` após 8 s; a regra mínima continua acionando LED/buzzer. Clicar de novo volta ao normal |
 | Chave errada no `config.h` | Serial: `HTTP 401` |
 

@@ -1,4 +1,4 @@
-﻿/* ==========================================================================
+/* ==========================================================================
  *  MARCO 3 - ESP32 (Wokwi, Arduino C++)  |  Internet dos Coisos
  *
  *  O ESP32 agora so MEDE e ATUA. A analise (janela, cobertura, histerese)
@@ -30,9 +30,8 @@ const char* WIFI_SSID = "Wokwi-GUEST";
 const char* DEVICE_ID = "esp32-borda-01";
 const char* ENTITY_ID = "patient-0042";
 
-const uint8_t PINO_FC     = 34;  // potenciometro: FC simulada
-const uint8_t PINO_SENSOR = 15;  // botao verde "sensor off": simula sensor desconectado (leitura null)
-const uint8_t PINO_FALHA  = 13;  // botao vermelho: simula queda da rede
+const uint8_t PINO_FC     = 34;  // potenciometro: FC simulada (no minimo, < 30 bpm = leitura invalida)
+const uint8_t PINO_FALHA  = 13;  // botao vermelho "rede off": simula queda da rede
 const uint8_t PINO_LED    = 25;  // apagado=NORMAL, aceso=ATENCAO, piscando=sem dados
 const uint8_t PINO_BUZZER = 4;
 
@@ -69,12 +68,11 @@ uint32_t ultimaRespostaMs = 0, proximaAmostraMs = 0, proximoComandoMs = 0, proxi
 /* == 1. MEDIR ============================================================ */
 
 float lerFc() {
-  if (digitalRead(PINO_SENSOR) == LOW) return NAN;
   return analogRead(PINO_FC) / 4095.0 * FC_ESCALA_MAX;
 }
 
 float lerAceleracaoG() {
-  if (!mpuPresente || digitalRead(PINO_SENSOR) == LOW) return NAN;
+  if (!mpuPresente) return NAN;
   sensors_event_t a, gyro, temp;
   if (!mpu.getEvent(&a, &gyro, &temp)) return NAN;
   return sqrt(a.acceleration.x * a.acceleration.x + a.acceleration.y * a.acceleration.y +
@@ -234,7 +232,6 @@ void lerFalha() {
 
 void setup() {
   Serial.begin(115200);
-  pinMode(PINO_SENSOR, INPUT_PULLUP);
   pinMode(PINO_FALHA, INPUT_PULLUP);
   pinMode(PINO_LED, OUTPUT);
   pinMode(PINO_BUZZER, OUTPUT);
