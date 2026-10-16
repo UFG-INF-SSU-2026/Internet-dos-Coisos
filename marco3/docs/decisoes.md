@@ -34,11 +34,12 @@ Orientação adicional: todos do grupo devem entender a solução de ponta a pon
 | D6 | Um comando por vez, um tipo (`RECONHECER_ALERTA`), 3 status | Um paciente, um dispositivo, uma ação. `PENDENTE → ENTREGUE → EXECUTADO`. |
 | D7 | Regra local mínima no ESP32, só quando a API não responde por 8 s | Sem rede o paciente ainda é alertado (FC > 100 bpm em repouso), sem duplicar a análise completa. |
 | D8 | Ciclo 2 com rotas próprias | Baixo acoplamento: o ciclo 1 não depende do ciclo 2, e o novo ciclo fica visível na demonstração. |
-| D9 | Lote de 3 leituras a cada 3 s | Menos conexões HTTPS do que uma por leitura (cada uma tem *handshake* TLS) e resposta rápida para a demo de 5 min. |
+| D9 | Lote de 3 leituras a cada 3 s | Menos requisições do que uma por leitura e resposta rápida para a demo de 5 min. |
 | D10 | *Polling* de comando a cada 3 s | O ESP32 não tem endereço público para a API "empurrar" o comando; 3 s deixa o ciclo 2 visível em poucos segundos. |
-| D15 | Tempos curtos para a demo: janela de 10 leituras (FC) e 5 (movimento), 4 s mínimos em cada estado, 8 s sem lote = `DADOS_INSUFICIENTES` | A demonstração tem 5 min; cada mudança de estado aparece em ~9 s. O projeto original usava janela de 60 s. |
-| D16 | Janela contada em **leituras**, não em horário de chegada; silêncio verificado à parte | Atrasos de rede no Wokwi (1–4 s por requisição HTTPS) não fazem o estado piscar; a queda real é detectada pelos 8 s sem lote. |
-| D11 | Uma chave por dispositivo (`X-Device-Key`), gerada por `gerar_config.py` | Confirmado como suficiente. A chave nunca vai para o GitHub (`.gitignore`). |
+| D15 | Tempos curtos para a demo: janela de 10 leituras (FC) e 5 (movimento), 4 s mínimos em cada estado, 8 s sem lote = `DADOS_INSUFICIENTES` | A demonstração tem 5 min; cada mudança de estado aparece em ~9 s. O projeto original usava janela de 120 s. |
+| D17 | Segurança na mensagem (HMAC-SHA256 + horário) em vez de HTTPS | Testamos no Wokwi: **nenhum** HTTPS completa (túnel e Google, com e sem validar certificado: "SSL - connection indicated an EOF"), enquanto HTTP simples funciona. A assinatura garante autenticidade e integridade, e o horário (janela de 120 s) impede repetir mensagem capturada. Não dá confidencialidade: aceitável para dados simulados. Em hardware real, voltar ao HTTPS mantendo a assinatura. |
+| D16 | Janela contada em **leituras**, não em horário de chegada; silêncio verificado à parte | Atrasos de rede no Wokwi (alguns segundos por requisição) não fazem o estado piscar; a queda real é detectada pelos 8 s sem lote. |
+| D11 | Uma chave por dispositivo, gerada por `gerar_config.py` | Confirmado como suficiente. A chave nunca vai para o GitHub (`.gitignore`) nem trafega na rede (D17). |
 | D12 | Sem fila offline no ESP32 | Lote que falha é descartado; a API percebe a falta de leituras e mostra `DADOS_INSUFICIENTES`. Preferimos mostrar a falta de dados a mostrar dados atrasados como atuais. Um broker não resolveria: com a rede do ESP32 fora, a leitura não sai do dispositivo. |
 | D13 | Dados em memória, sem banco | Um paciente e um cuidador. Reiniciar a API apaga o histórico (limitação assumida). |
 | D14 | Reconhecer o alerta só silencia o buzzer | O LED continua aceso e o estado não muda: o cuidador ter visto não significa que o risco passou. Só a regra encerra o alerta. |
@@ -57,13 +58,13 @@ No Marco 2 o cuidador só consumia. No Marco 3 ele também produz, e o ESP32 tam
 
 | Pergunta | Mecanismo |
 |---|---|
-| Alguém no meio do caminho lê ou altera os dados? (**canal**) | HTTPS do ESP32 até a Cloudflare; o ESP32 valida o certificado com `certificados_raiz.h` e recusa a conexão se for inválido. |
-| Quem está falando? (**autenticação**) | ESP32: chave `X-Device-Key`. Cuidador: usuário e senha (hash scrypt com salt) e depois cookie de sessão assinado. |
+| Alguém no meio do caminho altera, forja ou repete mensagens? (**canal**) | Não: cada mensagem do ESP32 leva `HMAC-SHA256(chave, horário + método + rota + corpo)`. Alterar um byte invalida a assinatura; sem a chave não se assina; mensagem com mais de 120 s é recusada. **Ler** as leituras no caminho é possível (sem HTTPS no Wokwi, D17). |
+| Quem está falando? (**autenticação**) | ESP32: assinatura que só quem tem a chave consegue gerar (a chave não trafega). Cuidador: usuário e senha (hash scrypt com salt) e depois cookie de sessão assinado. |
 | Pode fazer isso? (**autorização**) | A API confere os vínculos `esp32-borda-01 → patient-0042 → cuidador01`. Dispositivo errado: 403. Outro paciente: 403. ESP32 não cria comando; cuidador não forja ack. |
 
 ## Limitações assumidas
 
-- Do túnel até a API o tráfego é HTTP dentro do próprio PC.
+- Sem HTTPS (limitação do Wokwi, D17): as leituras podem ser lidas no caminho.
 - A URL do túnel gratuito muda a cada reinício do `cloudflared`.
 - Sinais simulados; sem valor clínico.
 - Sem banco, sem múltiplos pacientes, sem limite de tentativas de login.

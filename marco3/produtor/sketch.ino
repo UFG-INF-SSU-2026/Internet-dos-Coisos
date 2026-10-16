@@ -1,4 +1,4 @@
-/* ==========================================================================
+﻿/* ==========================================================================
  *  MARCO 3 - ESP32 (Wokwi, Arduino C++)  |  Internet dos Coisos
  *
  *  O ESP32 agora so MEDE e ATUA. A analise (janela, cobertura, histerese)
@@ -10,18 +10,19 @@
  *           RECONHECER_ALERTA -> silencia o buzzer -> POST /api/dispositivo/comando/ack.
  *  Sem resposta da API por 8 s: MODO LOCAL (regra minima aqui mesmo).
  *
- *  Toda requisicao e HTTPS com certificado validado + chave X-Device-Key.
+ *  Toda requisicao vai assinada (HMAC-SHA256 com a chave do dispositivo).
  *  O potenciometro NAO e um sensor cardiaco real.
  * ========================================================================== */
 
 #include <WiFi.h>
 #include <HTTPClient.h>
-#include <WiFiClientSecure.h>
 #include <Wire.h>
+#include <time.h>
 #include <Adafruit_MPU6050.h>
 #include <Adafruit_Sensor.h>
+#include "mbedtls/md.h"        // HMAC-SHA256
+#include "esp_sntp.h"          // intervalo de re-sincronizacao do relogio
 #include "config.h"            // API_BASE_URL e DEVICE_API_KEY (gerado por gerar_config.py, NAO versionar)
-#include "certificados_raiz.h" // raizes publicas usadas para validar o HTTPS
 
 /* == CONFIGURACAO ======================================================== */
 
@@ -80,26 +81,37 @@ float lerAceleracaoG() {
               a.acceleration.z * a.acceleration.z) / GRAVIDADE;
 }
 
-/* == 2. HTTPS ============================================================ */
+/* == 2. HTTP ASSINADO ==================================================== */
 
-// Toda requisicao passa por aqui: TLS validando o certificado do servidor com
-// certificados_raiz.h (nunca setInsecure) e a chave do dispositivo no cabecalho.
-// corpo == nullptr -> GET; senao -> POST com JSON.
-int requisicaoHttps(const String& rota, const char* corpo, String& resposta) {
+// Assinatura HMAC-SHA256 da mensagem com a chave do dispositivo (decisao D17):
+//   HMAC(chave, horario + "\n" + METODO + " " + rota + "\n" + corpo)
+// A chave nunca trafega. A API recalcula: chave errada ou corpo alterado -> 401;
+// horario com mais de 120 s -> 401 (impede repetir uma mensagem antiga).
+void assinar(const char* metodo, const String& rota, const char* corpo, char* horario, char* hex) {
+  snprintf(horario, 12, "%lu", (unsigned long)time(nullptr));
+  String mensagem = String(horario) + "\n" + metodo + " " + rota + "\n" + (corpo ? corpo : "");
+  uint8_t mac[32];
+  mbedtls_md_hmac(mbedtls_md_info_from_type(MBEDTLS_MD_SHA256),
+                  (const uint8_t*)DEVICE_API_KEY, strlen(DEVICE_API_KEY),
+                  (const uint8_t*)mensagem.c_str(), mensagem.length(), mac);
+  for (int i = 0; i < 32; i++) sprintf(hex + 2 * i, "%02x", mac[i]);
+}
+
+// Toda requisicao passa por aqui. corpo == nullptr -> GET; senao -> POST com JSON.
+int requisicao(const String& rota, const char* corpo, String& resposta) {
   if (falhaSimulada || WiFi.status() != WL_CONNECTED) return -1;
   String base = String(API_BASE_URL);
   if (base.endsWith("/")) base.remove(base.length() - 1);
-  if (!base.startsWith("https://")) {
-    Serial.println("[HTTP] API_BASE_URL deve ser o endereco https:// do tunel");
-    return -1;
-  }
-  WiFiClientSecure cliente;
-  cliente.setCACert(HTTPS_ROOT_CA);
+  char horario[12], assinatura[65];
+  assinar(corpo ? "POST" : "GET", rota, corpo, horario, assinatura);
+
+  WiFiClient cliente;
   HTTPClient http;
   http.setConnectTimeout(TIMEOUT_HTTP_MS);
   http.setTimeout(TIMEOUT_HTTP_MS);
   if (!http.begin(cliente, base + rota)) return -1;
-  http.addHeader("X-Device-Key", DEVICE_API_KEY);
+  http.addHeader("X-Timestamp", horario);
+  http.addHeader("X-Assinatura", assinatura);
   int codigo;
   if (corpo) {
     http.addHeader("Content-Type", "application/json");
@@ -146,7 +158,7 @@ void enviarLote() {
   snprintf(corpo + n, sizeof(corpo) - n, "]}");
 
   String resposta;
-  int codigo = requisicaoHttps("/api/leituras", corpo, resposta);
+  int codigo = requisicao("/api/leituras", corpo, resposta);
   char novo[24];
   if (codigo == 200 && extrairCampo(resposta, "estado", novo, sizeof(novo))) {
     if (estado != novo) Serial.printf("[%lu] estado (API): %s -> %s\n", millis(), estado.c_str(), novo);
@@ -163,7 +175,7 @@ void consultarComando() {
   String rota = String("/api/dispositivo/comando?deviceId=") + DEVICE_ID + "&entityId=" + ENTITY_ID;
   String resposta;
   char id[24], tipo[24];
-  if (requisicaoHttps(rota, nullptr, resposta) != 200) return;
+  if (requisicao(rota, nullptr, resposta) != 200) return;
   if (!extrairCampo(resposta, "commandId", id, sizeof(id)) ||
       !extrairCampo(resposta, "tipo", tipo, sizeof(tipo))) return;   // {} = nenhum comando
 
@@ -173,7 +185,7 @@ void consultarComando() {
   char corpo[160];
   snprintf(corpo, sizeof(corpo), "{\"deviceId\":\"%s\",\"entityId\":\"%s\",\"commandId\":\"%s\"}",
            DEVICE_ID, ENTITY_ID, id);
-  int codigo = requisicaoHttps("/api/dispositivo/comando/ack", corpo, resposta);
+  int codigo = requisicao("/api/dispositivo/comando/ack", corpo, resposta);
   Serial.printf("[%lu] comando %s (%s): buzzer silenciado; ack HTTP %d\n", millis(), id, tipo, codigo);
 }
 
@@ -227,9 +239,9 @@ void setup() {
   pinMode(PINO_LED, OUTPUT);
   pinMode(PINO_BUZZER, OUTPUT);
 
-  Serial.println("\n=== MARCO 3 | ESP32 -> HTTPS -> API ===");
+  Serial.println("\n=== MARCO 3 | ESP32 -> HTTP assinado -> API ===");
   Serial.printf("API: %s\n", API_BASE_URL);
-  if (strstr(API_BASE_URL, "COLE-AQUI")) Serial.println("ATENCAO: cole em config.h a URL https:// do tunel");
+  if (strstr(API_BASE_URL, "COLE-AQUI")) Serial.println("ATENCAO: cole em config.h a URL do tunel");
   snprintf(bootId, sizeof(bootId), "%08lX", (unsigned long)esp_random());
   Serial.printf("bootId: %s\n", bootId);
 
@@ -242,7 +254,13 @@ void setup() {
   WiFi.begin(WIFI_SSID, "", 6);                 // canal 6 acelera no Wokwi
   while (WiFi.status() != WL_CONNECTED) { delay(200); Serial.print("."); }
   Serial.printf(" conectado, IP %s\n", WiFi.localIP().toString().c_str());
-  configTime(0, 0, "pool.ntp.org", "time.google.com");   // relogio certo para validar o certificado
+  // A assinatura leva o horario: sem NTP a API recusa as mensagens. Espera ate 10 s.
+  // Re-sincroniza a cada 15 s: no Wokwi o relogio simulado atrasa quando a simulacao fica lenta.
+  sntp_set_sync_interval(15000);
+  configTime(0, 0, "pool.ntp.org", "time.google.com");
+  Serial.print("NTP");
+  for (int i = 0; i < 40 && time(nullptr) < 1700000000; i++) { delay(250); Serial.print("."); }
+  Serial.println(time(nullptr) >= 1700000000 ? " ok" : " sem horario (a API vai recusar com 401)");
 
   proximaAmostraMs = proximoComandoMs = ultimaRespostaMs = millis();
 }

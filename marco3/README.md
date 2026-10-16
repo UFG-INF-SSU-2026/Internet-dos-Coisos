@@ -10,9 +10,9 @@
 
 | Requisito do Marco 3 | Como atendemos |
 |---|---|
-| Evoluir a arquitetura produtor-consumidor do Marco 2 | O ESP32 agora **mede e atua**; a análise foi para a API em Python (`api/regra.py`). A comunicação passou de MQTT para HTTPS/REST. |
-| Segurança no canal | HTTPS do ESP32 até o túnel Cloudflare, com **certificado validado** no ESP32 (`certificados_raiz.h`). |
-| Identificação e autenticação dos dispositivos | `deviceId` + chave `X-Device-Key` em toda requisição do ESP32. |
+| Evoluir a arquitetura produtor-consumidor do Marco 2 | O ESP32 agora **mede e atua**; a análise foi para a API em Python (`api/regra.py`). A comunicação passou de MQTT para HTTP/REST. |
+| Segurança no canal | Toda mensagem do ESP32 vai **assinada** (HMAC-SHA256 com a chave do dispositivo + horário). A chave nunca trafega; mensagem alterada, forjada ou repetida é recusada. O Wokwi não completa HTTPS (decisão D17). |
+| Identificação e autenticação dos dispositivos | `deviceId` no corpo + assinatura que só quem tem a chave consegue gerar. |
 | Autorização das mensagens | A API confere os vínculos `esp32-borda-01 → patient-0042 → cuidador01` (403 se não bater). |
 | Novo ciclo produtor-consumidor | **Ciclo 2:** o cuidador (consumidor no Marco 2) produz o comando "reconhecer alerta"; o ESP32 consome, silencia o buzzer e confirma. |
 
@@ -22,14 +22,16 @@ Decisões e o motivo de cada uma: [`docs/decisoes.md`](docs/decisoes.md). Roteir
 
 ```text
  CICLO 1                                              CICLO 2
- ESP32 ──HTTPS POST /api/leituras (chave)──► API      Painel ──POST /api/pacientes/{id}/comando (sessão)──► API
-   ▲                                          │ regra.py                                                     │
-   └────────── resposta: estado ──────────────┤                    ESP32 ◄── HTTPS GET /api/dispositivo/comando (chave)
-                                              ▼                      │ silencia o buzzer
- Painel ◄── GET /api/pacientes/{id}/estado (sessão)                  └──► HTTPS POST /api/dispositivo/comando/ack (chave) ──► API ──► Painel
+ ESP32 ──POST /api/leituras (assinado)──► API         Painel ──POST /api/pacientes/{id}/comando (sessão)──► API
+   ▲                                       │ regra.py                                                        │
+   └────────── resposta: estado ───────────┤                       ESP32 ◄── GET /api/dispositivo/comando (assinado)
+                                           ▼                         │ silencia o buzzer
+ Painel ◄── GET /api/pacientes/{id}/estado (sessão)                  └──► POST /api/dispositivo/comando/ack (assinado) ──► API ──► Painel
 ```
 
-O ESP32 alcança a API do PC por um túnel gratuito da Cloudflare: `ESP32 (Wokwi) ──HTTPS──► https://xxxx.trycloudflare.com ──► 127.0.0.1:5000`.  
+O ESP32 alcança a API do PC por um túnel gratuito da Cloudflare: `ESP32 (Wokwi) ──HTTP assinado──► http://xxxx.trycloudflare.com ──► 127.0.0.1:5000`.
+
+**Como a assinatura funciona:** o ESP32 calcula `HMAC-SHA256(chave, horário + método + rota + corpo)` e manda o resultado nos cabeçalhos `X-Timestamp` e `X-Assinatura`. A API, que tem a mesma chave, recalcula e compara. Sem a chave não dá para assinar; mudar um byte do corpo muda a assinatura; mensagem com mais de 120 s é recusada (não dá para repetir uma mensagem capturada).  
 Diagrama editável: [`docs/arquitetura.mmd`](docs/arquitetura.mmd).
 
 ### Quem faz o quê
@@ -46,11 +48,11 @@ Diagrama editável: [`docs/arquitetura.mmd`](docs/arquitetura.mmd).
 | Rota | Quem chama | Autenticação | Autorização | Respostas |
 |---|---|---|---|---|
 | `GET/POST /login`, `POST /logout` | cuidador | usuário + senha | — | HTML / 303 / 401 |
-| `POST /api/leituras` | ESP32 | `X-Device-Key` | `deviceId`↔`entityId` | 200, 400, 401, 403 |
+| `POST /api/leituras` | ESP32 | assinatura HMAC | `deviceId`↔`entityId` | 200, 400, 401, 403 |
 | `GET /api/pacientes/{id}/estado` | painel | sessão | cuidador↔paciente | 200, 401, 403 |
 | `POST /api/pacientes/{id}/comando` | painel | sessão | cuidador↔paciente | 201, 200 (repetido), 401, 403, 409 (sem alerta) |
-| `GET /api/dispositivo/comando` | ESP32 | `X-Device-Key` | `deviceId`↔`entityId` | 200 (comando ou `{}`), 401, 403 |
-| `POST /api/dispositivo/comando/ack` | ESP32 | `X-Device-Key` | `deviceId`↔`entityId` | 200, 401, 403, 404, 409 |
+| `GET /api/dispositivo/comando` | ESP32 | assinatura HMAC | `deviceId`↔`entityId` | 200 (comando ou `{}`), 401, 403 |
+| `POST /api/dispositivo/comando/ack` | ESP32 | assinatura HMAC | `deviceId`↔`entityId` | 200, 401, 403, 404, 409 |
 
 Exemplos de mensagens: [`contrato/leituras-v3.json`](contrato/leituras-v3.json) e [`contrato/comando-v1.json`](contrato/comando-v1.json). Documentação automática: `http://127.0.0.1:5000/docs`.
 
@@ -58,7 +60,7 @@ Exemplos de mensagens: [`contrato/leituras-v3.json`](contrato/leituras-v3.json) 
 
 ```text
 marco3/
-├── produtor/  sketch.ino, diagram.json, libraries.txt, certificados_raiz.h, config.exemplo.h
+├── produtor/  sketch.ino, diagram.json, libraries.txt, config.exemplo.h
 ├── api/       app.py, regra.py, gerar_config.py, requirements*.txt, .env.exemplo, templates/
 ├── contrato/  leituras-v3.json, comando-v1.json
 ├── docs/      decisoes.md, roteiro-apresentacao.md, arquitetura.mmd
@@ -89,7 +91,7 @@ Montar o projeto no Wokwi (uma vez):
 
 1. Em wokwi.com, **New Project → ESP32** (Arduino).
 2. Substitua o conteúdo de `sketch.ino` e `diagram.json` pelos de `marco3/produtor/`.
-3. Crie (botão **+** / *New file*) os arquivos `libraries.txt`, `certificados_raiz.h` e `config.h`, colando o conteúdo de `marco3/produtor/` (o `config.h` é o **gerado** pelo script).
+3. Crie (botão **+** / *New file*) os arquivos `libraries.txt` e `config.h`, colando o conteúdo de `marco3/produtor/` (o `config.h` é o **gerado** pelo script).
 4. Salve o projeto como **privado** (o `config.h` contém a chave).
 
 ### 4.2 A cada demonstração (~2 min)
@@ -98,7 +100,7 @@ Montar o projeto no Wokwi (uma vez):
 |---|---|---|---|
 | 1 | Terminal 1, pasta `marco3/api` | `python app.py` | `Uvicorn running on http://127.0.0.1:5000` |
 | 2 | Terminal 2 (qualquer pasta) | `cloudflared tunnel --url http://127.0.0.1:5000` | aparece um quadro com `https://xxxx.trycloudflare.com` — copie |
-| 3 | Wokwi, arquivo `config.h` | troque o valor de `API_BASE_URL` pela URL do passo 2 | — |
+| 3 | Wokwi, arquivo `config.h` | troque o valor de `API_BASE_URL` pela URL do passo 2, **trocando `https://` por `http://`** | — |
 | 4 | Wokwi | ▶ iniciar a simulação | serial: `WiFi ... conectado` e, a cada 3 s, `lote N: HTTP 200` |
 | 5 | Navegador no PC | `http://127.0.0.1:5000/login`, entrar com `cuidador01` + senha anotada | painel mostra `NORMAL` em ~10 s |
 
@@ -109,8 +111,8 @@ Use `127.0.0.1`, não `localhost` (no Windows, `localhost` pode ir para IPv6). A
 | Sintoma | Causa provável |
 |---|---|
 | `Execute primeiro: python gerar_config.py` | falta o `api/.env`: rode o passo 4.1 |
-| Serial: `HTTP -1` | API ou túnel fechados, URL errada/antiga no `config.h`, ou falha simulada ligada (botão vermelho / tecla `f`) |
-| Serial: `HTTP 401` | `config.h` do Wokwi com chave diferente do `api/.env` (gere os dois de novo juntos) |
+| Serial: `HTTP -1` | API ou túnel fechados, URL errada/antiga no `config.h`, URL com `https://` (use `http://`), ou falha simulada ligada (botão vermelho / tecla `f`) |
+| Serial: `HTTP 401` | `config.h` do Wokwi com chave diferente do `api/.env` (gere os dois de novo juntos), ou serial mostrou `NTP ... sem horario` (a assinatura leva o horário) |
 | Serial: `HTTP 403` | `DEVICE_ID`/`ENTITY_ID` do sketch diferentes do `.env` |
 | Serial: `ATENCAO: cole em config.h a URL` | `API_BASE_URL` ainda é o texto de exemplo |
 | Painel fica em `SEM DADOS` | nenhum lote chegou: olhe o serial do Wokwi |
@@ -141,7 +143,7 @@ python -m unittest discover -s marco3/testes -v
 
 ## 6. Limitações assumidas
 
-- Do túnel até a API o tráfego é HTTP, dentro do próprio PC.
+- **Sem HTTPS:** o ESP32 simulado no Wokwi não completa nenhum handshake TLS (testado com o túnel e com o Google, com e sem validar certificado; HTTP simples funciona). Por isso as mensagens vão assinadas (HMAC): ninguém forja, altera ou repete uma mensagem, mas as leituras **podem ser lidas** no caminho (não há confidencialidade). Em uma ESP32 real, o próximo passo seria voltar ao HTTPS mantendo a assinatura.
 - O túnel gratuito não tem garantia de disponibilidade e troca de URL a cada reinício.
 - Sem fila offline: lotes enviados durante a queda são perdidos (decisão D12).
 - Dados em memória: reiniciar a API apaga o histórico.

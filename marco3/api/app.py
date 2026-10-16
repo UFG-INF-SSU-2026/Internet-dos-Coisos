@@ -30,6 +30,7 @@ from regra import Monitor
 BASE = Path(__file__).resolve().parent
 ONLINE_S = 10          # sem contato do ESP32 por 10 s: "sem contato recente"
 MAX_LEITURAS = 10      # o ESP32 manda 3 por lote; folga para atrasos
+JANELA_ASSINATURA_S = 120  # mensagem assinada há mais de 120 s é recusada (anti-repetição)
 
 
 def carregar_env_local():
@@ -98,10 +99,20 @@ def create_app():
         """Autenticação do cuidador: a sessão diz quem fez login."""
         return request.session.get('usuario') == cuidador
 
-    def dispositivo_autenticado(request):
-        """Autenticação do ESP32: chave enviada no cabeçalho X-Device-Key."""
-        token = request.headers.get('X-Device-Key', '')
-        return bool(token) and hmac.compare_digest(token, chave)
+    def dispositivo_autenticado(request, corpo: bytes):
+        """Autenticação do ESP32: assinatura HMAC-SHA256 da mensagem com a chave do dispositivo.
+
+        A chave nunca trafega. Quem não tem a chave não consegue assinar; quem altera
+        o corpo invalida a assinatura; o horário impede repetir uma mensagem antiga.
+        """
+        horario = request.headers.get('X-Timestamp', '')
+        recebida = request.headers.get('X-Assinatura', '')
+        if not horario.isdigit() or abs(time.time() - int(horario)) > JANELA_ASSINATURA_S:
+            return False
+        rota = request.url.path + (f'?{request.url.query}' if request.url.query else '')
+        mensagem = f'{horario}\n{request.method} {rota}\n'.encode() + corpo
+        esperada = hmac.new(chave.encode(), mensagem, hashlib.sha256).hexdigest()
+        return hmac.compare_digest(recebida, esperada)
 
     def dispositivo_autorizado(corpo):
         """Autorização do ESP32: este dispositivo pode publicar por este paciente?"""
@@ -112,9 +123,9 @@ def create_app():
         dados['contato_em'] = time.monotonic()
         dados['hora_contato'] = agora_utc()
 
-    async def ler_json(request):
+    def ler_json(corpo: bytes):
         try:
-            valor = json.loads(await request.body())
+            valor = json.loads(corpo)
             return valor if isinstance(valor, dict) else None
         except (UnicodeDecodeError, ValueError):
             return None
@@ -158,9 +169,10 @@ def create_app():
     # ---------------- ciclo 1: leituras do ESP32 ----------------
     @app.post('/api/leituras', tags=['Dispositivo'])
     async def receber_leituras(request: Request):
-        if not dispositivo_autenticado(request):
-            return JSONResponse({'erro': 'Chave do dispositivo invalida'}, 401)
-        corpo = await ler_json(request)
+        bruto = await request.body()
+        if not dispositivo_autenticado(request, bruto):
+            return JSONResponse({'erro': 'Assinatura do dispositivo invalida'}, 401)
+        corpo = ler_json(bruto)
         if corpo is None:
             return JSONResponse({'erro': 'Envie um objeto JSON'}, 400)
         if not dispositivo_autorizado(corpo):
@@ -224,8 +236,8 @@ def create_app():
 
     @app.get('/api/dispositivo/comando', tags=['Dispositivo'])
     async def entregar_comando(request: Request, deviceId: str = '', entityId: str = ''):
-        if not dispositivo_autenticado(request):
-            return JSONResponse({'erro': 'Chave do dispositivo invalida'}, 401)
+        if not dispositivo_autenticado(request, b''):
+            return JSONResponse({'erro': 'Assinatura do dispositivo invalida'}, 401)
         if not dispositivo_autorizado({'deviceId': deviceId, 'entityId': entityId}):
             return JSONResponse({'erro': 'Dispositivo/paciente nao autorizado'}, 403)
         registrar_contato()                      # a consulta também prova que o ESP32 está vivo
@@ -237,9 +249,10 @@ def create_app():
 
     @app.post('/api/dispositivo/comando/ack', tags=['Dispositivo'])
     async def confirmar_comando(request: Request):
-        if not dispositivo_autenticado(request):
-            return JSONResponse({'erro': 'Chave do dispositivo invalida'}, 401)
-        corpo = await ler_json(request)
+        bruto = await request.body()
+        if not dispositivo_autenticado(request, bruto):
+            return JSONResponse({'erro': 'Assinatura do dispositivo invalida'}, 401)
+        corpo = ler_json(bruto)
         if not dispositivo_autorizado(corpo):
             return JSONResponse({'erro': 'Dispositivo/paciente nao autorizado'}, 403)
         c = dados['comando']
