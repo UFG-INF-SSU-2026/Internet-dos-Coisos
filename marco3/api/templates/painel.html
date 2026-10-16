@@ -18,15 +18,14 @@
     .normal {background:#dcfce7;color:#166534} .atencao {background:#fee2e2;color:#991b1b}
     .insuficiente {background:#dbeafe;color:#1e40af}
     button {color:#173b72;background:white;border:1px solid #fff;border-radius:6px;padding:8px 12px;cursor:pointer}
-    h2 {font-size:1.1rem} footer {color:#53637b;font-size:.85rem}
+    #btnReconhecer {color:#fff;background:#173b72;border:0} #btnReconhecer:disabled {opacity:.45;cursor:default}
+    h2 {font-size:1.1rem} footer {color:#53637b;font-size:.85rem} li {margin:4px 0}
   </style>
 </head>
 <body>
   <header>
     <div><strong>Monitoramento · Internet dos Coisos</strong><small>Cuidador: {{ usuario }}</small></div>
-    <form action="{{ url_for('logout') }}" method="post">
-      <input type="hidden" name="csrf" value="{{ csrf }}"><button type="submit">Sair</button>
-    </form>
+    <form action="{{ url_for('logout') }}" method="post"><button type="submit">Sair</button></form>
   </header>
   <main>
     <section>
@@ -34,62 +33,67 @@
       <p><span class="status" id="estado">Carregando...</span></p>
       <p id="dispositivo">Aguardando resposta da API...</p>
       <div class="grade">
-        <div class="metrica"><div class="titulo">Frequência cardíaca média</div><div class="valor" id="fc">—</div></div>
+        <div class="metrica"><div class="titulo">FC média (janela 20 s)</div><div class="valor" id="fc">—</div></div>
         <div class="metrica"><div class="titulo">Movimento</div><div class="valor" id="mov">—</div></div>
         <div class="metrica"><div class="titulo">Cobertura FC / MOV</div><div class="valor" id="cob">—</div></div>
-        <div class="metrica"><div class="titulo">Eventos recebidos</div><div class="valor" id="quantidade">0</div></div>
+        <div class="metrica"><div class="titulo">Lotes recebidos</div><div class="valor" id="lotes">0</div></div>
       </div>
     </section>
     <section>
-      <h2>Ação do cuidador</h2>
-      <button id="btnReconhecer" style="color:#fff;background:#173b72;border:0" disabled>Reconhecer alerta (silenciar buzzer)</button>
+      <h2>Ciclo 2 · Ação do cuidador</h2>
+      <button id="btnReconhecer" disabled>Reconhecer alerta (silenciar buzzer)</button>
       <p id="comando">Nenhum comando enviado.</p>
     </section>
     <section>
-      <h2>Última alteração de estado</h2>
-      <p id="evento">Ainda não foi recebido nenhum evento.</p>
-      <p id="sequencia"></p>
-      <p id="contato">Último contato: —</p>
+      <h2>Mudanças de estado (decididas pela API)</h2>
+      <ul id="historico"><li>Nenhuma ainda.</li></ul>
+      <p id="contato">Último contato do ESP32: —</p>
     </section>
     <footer>Atualização automática a cada 3 s por HTTP GET. Protótipo didático: não utilizar para decisões médicas.</footer>
   </main>
   <script>
-    const rota = {{ url_for('estado', codigo=paciente)|string|tojson }};
+    const rotaEstado = {{ url_for('estado', codigo=paciente)|string|tojson }};
+    const rotaComando = {{ url_for('criar_comando', codigo=paciente)|string|tojson }};
     const porId = (id) => document.getElementById(id);
-    const rotaComando = rota.replace('/estado', '/comandos');
-    const csrfToken = {{ csrf|tojson }};
+    const hora = (iso) => iso ? new Date(iso).toLocaleTimeString('pt-BR') : '—';
+
     porId('btnReconhecer').addEventListener('click', async () => {
-      const r = await fetch(rotaComando, {method:'POST', cache:'no-store',
-        headers:{'Content-Type':'application/json','X-CSRF-Token':csrfToken},
-        body: JSON.stringify({tipo:'RECONHECER_ALERTA'})});
-      porId('comando').textContent = r.ok ? 'Comando enviado; aguardando o dispositivo...' : 'Falha ao enviar (HTTP ' + r.status + ')';
+      const r = await fetch(rotaComando, {method: 'POST'});
+      porId('comando').textContent = r.ok ? 'Comando enviado; aguardando o ESP32...' : 'Falha ao enviar (HTTP ' + r.status + ')';
       atualizar();
     });
+
     async function atualizar() {
       try {
-        const resposta = await fetch(rota, {cache:'no-store'});
-        if (resposta.status === 401) {location.replace('/login'); return;}
+        const resposta = await fetch(rotaEstado, {cache: 'no-store'});
+        if (resposta.status === 401) { location.replace('/login'); return; }
         if (!resposta.ok) throw new Error('HTTP ' + resposta.status);
-        const dados = await resposta.json();
-        const e = dados.ultimoEvento;
+        const d = await resposta.json();
+        const r = d.resumo || {};
+
         const badge = porId('estado');
-        badge.textContent = dados.estado.replaceAll('_',' ');
-        badge.className = 'status ' + (dados.estado === 'NORMAL' ? 'normal' :
-                         dados.estado === 'ATENCAO' ? 'atencao' : 'insuficiente');
-        porId('dispositivo').textContent = 'ESP32: ' + (dados.online ? 'contato recente' : 'sem contato recente');
-        porId('quantidade').textContent = dados.eventosRecebidos;
-        const c = dados.ultimoComando;
-        porId('btnReconhecer').disabled = dados.estado !== 'ATENCAO' || (c && (c.status === 'PENDENTE' || c.status === 'ENTREGUE'));
+        badge.textContent = d.estado.replaceAll('_', ' ');
+        badge.className = 'status ' + (d.estado === 'NORMAL' ? 'normal' : d.estado === 'ATENCAO' ? 'atencao' : 'insuficiente');
+        porId('dispositivo').textContent = 'ESP32: ' + (d.online ? 'contato recente' : 'sem contato recente');
+        porId('fc').textContent = r.fcMedia == null ? '—' : r.fcMedia.toFixed(1) + ' bpm';
+        porId('mov').textContent = r.movimento ?? '—';
+        porId('cob').textContent = r.coberturaFc == null ? '—' :
+          Math.round(r.coberturaFc * 100) + '% / ' + Math.round(r.coberturaMov * 100) + '%';
+        porId('lotes').textContent = d.lotesRecebidos;
+
+        const c = d.comando;
+        porId('btnReconhecer').disabled = d.estado !== 'ATENCAO' || (c && c.status !== 'EXECUTADO');
         if (c) porId('comando').textContent = 'Comando ' + c.commandId + ': ' + c.status +
-            (c.confirmadoEmUtc ? ' (confirmado pelo ESP32 em ' + new Date(c.confirmadoEmUtc).toLocaleTimeString('pt-BR') + ')' : '');
-        porId('fc').textContent = e?.value == null ? '—' : Number(e.value).toFixed(1) + ' bpm';
-        porId('mov').textContent = e?.motion ?? '—';
-        porId('cob').textContent = e ? Math.round(e.coverageFc*100)+'% / '+Math.round(e.coverageMov*100)+'%' : '—';
-        porId('evento').textContent = e ? (e.state+' · '+e.reason) : 'Ainda não foi recebido nenhum evento.';
-        porId('sequencia').textContent = e ? ('Seq. '+e.sequence+' | Reinício '+e.bootId+
-                     ' | Saltos detectados: '+dados.saltosDeSequencia) : '';
-        porId('contato').textContent = 'Último contato: ' +
-                       (dados.ultimoContatoUtc ? new Date(dados.ultimoContatoUtc).toLocaleString('pt-BR') : '—');
+          (c.confirmadoEmUtc ? ' (confirmado pelo ESP32 às ' + hora(c.confirmadoEmUtc) + ')' : '');
+
+        porId('historico').innerHTML = '';
+        for (const e of d.historico) {
+          const li = document.createElement('li');
+          li.textContent = hora(e.horaUtc) + ' · ' + e.estado + ' (' + e.razao + ')';
+          porId('historico').appendChild(li);
+        }
+        if (!d.historico.length) porId('historico').innerHTML = '<li>Nenhuma ainda.</li>';
+        porId('contato').textContent = 'Último contato do ESP32: ' + hora(d.ultimoContatoUtc);
       } catch (erro) {
         porId('dispositivo').textContent = 'Falha ao consultar a API: ' + erro.message;
       }
