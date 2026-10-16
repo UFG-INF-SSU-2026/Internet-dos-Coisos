@@ -48,12 +48,12 @@ class TestarApi(unittest.TestCase):
 
     def lote(self, n, fc=80, device='esp32-borda-01'):
         return {'deviceId': device, 'entityId': 'patient-0042', 'loteId': f'AB12CD34-{n}',
-                'leituras': [{'fc': fc, 'g': 1.0}] * 5}
+                'leituras': [{'fc': fc, 'g': 1.0}] * 3}
 
     def enviar_lotes(self, fc, quantidade):
-        """Simula o ESP32 mandando um lote a cada 5 s."""
+        """Simula o ESP32 mandando um lote de 3 leituras a cada 3 s."""
         for _ in range(quantidade):
-            self.relogio += 5
+            self.relogio += 3
             r = self.client.post('/api/leituras', json=self.lote(int(self.relogio), fc), headers=self.chave)
             self.assertEqual(r.status_code, 200)
         return r.json()

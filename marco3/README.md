@@ -36,8 +36,8 @@ Diagrama editável: [`docs/arquitetura.mmd`](docs/arquitetura.mmd).
 
 | Componente | Responsabilidade | Arquivo |
 |---|---|---|
-| ESP32 | lê FC e aceleração a cada 1 s; envia lote de 5 leituras; liga LED/buzzer conforme o estado; busca comando a cada 5 s; modo local se a API sumir por 15 s | `produtor/sketch.ino` |
-| Regra | janela de 20 s, cobertura mínima de 70%, entra em ATENÇÃO acima de 100 bpm em repouso por 2 avaliações, sai abaixo de 92 bpm | `api/regra.py` |
+| ESP32 | lê FC e aceleração a cada 1 s; envia lote de 3 leituras a cada 3 s; liga LED/buzzer conforme o estado; busca comando a cada 3 s; modo local se a API sumir por 8 s | `produtor/sketch.ino` |
+| Regra | média das últimas 10 leituras, cobertura mínima de 70%, entra em ATENÇÃO acima de 100 bpm em repouso por 2 avaliações, sai abaixo de 92 bpm; 8 s sem lote = DADOS INSUFICIENTES | `api/regra.py` |
 | API | rotas, login, chave do dispositivo, vínculos, comando | `api/app.py` |
 | Painel | mostra estado e histórico; botão "Reconhecer alerta" | `api/templates/painel.html` |
 
@@ -65,9 +65,14 @@ marco3/
 └── testes/    test_regra.py, test_api.py
 ```
 
-## 4. Como executar (Windows)
+## 4. Como executar (Windows) — passo a passo
 
-**Uma vez**, em `marco3/api`:
+**Precisa de:** Python 3.10+ (`python --version`), navegador e uma conta gratuita no [Wokwi](https://wokwi.com).
+Se o terminal não reconhecer `python`, use `py`.
+
+### 4.1 Preparação (só uma vez)
+
+No PowerShell, na pasta **`marco3/api`**:
 
 ```powershell
 python -m pip install -r requirements.txt
@@ -75,18 +80,41 @@ python gerar_config.py
 winget install --id Cloudflare.cloudflared
 ```
 
-`gerar_config.py` cria `api/.env` e `produtor/config.h` com **a mesma chave** do dispositivo e mostra a senha do cuidador (usuário `cuidador01`) **uma única vez**. Esses dois arquivos não vão para o GitHub. Para gerar de novo, apague os dois e rode o script outra vez.
+- `gerar_config.py` cria `api/.env` (servidor) e `produtor/config.h` (ESP32) com **a mesma chave** do dispositivo.
+- Ele mostra a senha do cuidador **uma única vez** (usuário `cuidador01`). **Anote.**
+- Esses dois arquivos não vão para o GitHub. Para gerar de novo, apague os dois e rode o script outra vez.
+- Depois do `winget`, **feche e reabra** o terminal.
 
-**A cada demonstração:**
+Montar o projeto no Wokwi (uma vez):
 
-1. Terminal 1 (`marco3/api`): `python app.py`
-2. Terminal 2: `cloudflared tunnel --url http://127.0.0.1:5000` e copie a URL `https://xxxx.trycloudflare.com`. Use `127.0.0.1`, não `localhost`.
-3. Wokwi: projeto ESP32 com `sketch.ino`, `diagram.json`, `libraries.txt`, `certificados_raiz.h` e o `config.h` gerado. Em `config.h`, cole a URL do passo 2 em `API_BASE_URL`. Não deixe esse projeto público (tem a chave).
-4. Inicie a simulação. O serial deve mostrar `lote N: HTTP 200`.
-5. No PC: `http://127.0.0.1:5000/login`.
+1. Em wokwi.com, **New Project → ESP32** (Arduino).
+2. Substitua o conteúdo de `sketch.ino` e `diagram.json` pelos de `marco3/produtor/`.
+3. Crie (botão **+** / *New file*) os arquivos `libraries.txt`, `certificados_raiz.h` e `config.h`, colando o conteúdo de `marco3/produtor/` (o `config.h` é o **gerado** pelo script).
+4. Salve o projeto como **privado** (o `config.h` contém a chave).
 
-A URL do túnel muda sempre que o `cloudflared` reinicia: atualize só `API_BASE_URL`.  
-Serial com `HTTP -1`: confira API, túnel, URL no `config.h` e se a falha simulada (botão vermelho / tecla `f`) está desligada.
+### 4.2 A cada demonstração (~2 min)
+
+| # | Onde | O que fazer | Como saber que deu certo |
+|---|---|---|---|
+| 1 | Terminal 1, pasta `marco3/api` | `python app.py` | `Uvicorn running on http://127.0.0.1:5000` |
+| 2 | Terminal 2 (qualquer pasta) | `cloudflared tunnel --url http://127.0.0.1:5000` | aparece um quadro com `https://xxxx.trycloudflare.com` — copie |
+| 3 | Wokwi, arquivo `config.h` | troque o valor de `API_BASE_URL` pela URL do passo 2 | — |
+| 4 | Wokwi | ▶ iniciar a simulação | serial: `WiFi ... conectado` e, a cada 3 s, `lote N: HTTP 200` |
+| 5 | Navegador no PC | `http://127.0.0.1:5000/login`, entrar com `cuidador01` + senha anotada | painel mostra `NORMAL` em ~10 s |
+
+Use `127.0.0.1`, não `localhost` (no Windows, `localhost` pode ir para IPv6). A URL do túnel **muda toda vez** que o `cloudflared` reinicia: aí basta atualizar `API_BASE_URL` no Wokwi e reiniciar a simulação.
+
+### 4.3 Se algo der errado
+
+| Sintoma | Causa provável |
+|---|---|
+| `Execute primeiro: python gerar_config.py` | falta o `api/.env`: rode o passo 4.1 |
+| Serial: `HTTP -1` | API ou túnel fechados, URL errada/antiga no `config.h`, ou falha simulada ligada (botão vermelho / tecla `f`) |
+| Serial: `HTTP 401` | `config.h` do Wokwi com chave diferente do `api/.env` (gere os dois de novo juntos) |
+| Serial: `HTTP 403` | `DEVICE_ID`/`ENTITY_ID` do sketch diferentes do `.env` |
+| Serial: `ATENCAO: cole em config.h a URL` | `API_BASE_URL` ainda é o texto de exemplo |
+| Painel fica em `SEM DADOS` | nenhum lote chegou: olhe o serial do Wokwi |
+| Esqueci a senha | apague `api/.env` e `produtor/config.h`, rode `gerar_config.py` e cole o novo `config.h` no Wokwi |
 
 ## 5. O que observar na demonstração
 
@@ -95,11 +123,11 @@ Serial com `HTTP -1`: confira API, túnel, URL no `config.h` e se a falha simula
 | Abrir `/painel` sem login | Redireciona para `/login` |
 | Senha errada / certa | Erro / painel liberado |
 | Consultar `/api/pacientes/patient-9999/estado` | `403` |
-| Potenciômetro acima de 100 bpm, MPU parado | Em 15–25 s: painel `ATENCAO`, LED aceso, buzzer |
+| Potenciômetro acima de 100 bpm, MPU parado | Em ~10 s: painel `ATENCAO`, LED aceso, buzzer |
 | Clicar "Reconhecer alerta" | `PENDENTE → ENTREGUE → EXECUTADO`; buzzer silencia, LED continua aceso |
-| Potenciômetro abaixo de 92 bpm | Volta a `NORMAL`, LED apaga |
-| Botão verde (sensor desconectado) | `DADOS_INSUFICIENTES`, LED piscando |
-| Botão vermelho / tecla `f` (rede caiu) | Painel: `DADOS_INSUFICIENTES` e "sem contato recente". ESP32: `MODO LOCAL` após 15 s, regra mínima continua acionando LED/buzzer |
+| Potenciômetro abaixo de 92 bpm | Em ~10 s volta a `NORMAL`, LED apaga |
+| Segurar o botão verde (sensor desconectado) | Em poucos segundos `DADOS_INSUFICIENTES`, LED piscando |
+| Botão vermelho / tecla `f` (rede caiu) | Em ~10 s, painel: `DADOS_INSUFICIENTES` e "sem contato recente". ESP32: `MODO LOCAL` após 8 s; a regra mínima continua acionando LED/buzzer. Clicar de novo volta ao normal |
 | Chave errada no `config.h` | Serial: `HTTP 401` |
 
 **Testes automáticos** (sem Wokwi), na raiz do repositório:

@@ -8,9 +8,9 @@ from regra import Monitor, fc_valida, movimento  # noqa: E402
 
 
 def alimentar(monitor, fc, de, ate, g=1.0):
-    """Simula o ESP32: um lote de 5 leituras a cada 5 s, de 'de' até 'ate'."""
-    for agora in range(de, ate + 1, 5):
-        monitor.adicionar([{'fc': fc, 'g': g}] * 5, agora)
+    """Simula o ESP32: um lote de 3 leituras a cada 3 s, de 'de' até 'ate'."""
+    for agora in range(de, ate + 1, 3):
+        monitor.adicionar([{'fc': fc, 'g': g}] * 3, agora)
 
 
 class TestarRegra(unittest.TestCase):
@@ -25,42 +25,42 @@ class TestarRegra(unittest.TestCase):
 
     def test_poucos_dados_e_depois_normal(self):
         m = Monitor()
-        alimentar(m, 80, 5, 10)               # 10 s de 20: cobertura 50%
+        alimentar(m, 80, 3, 6)                # 6 s de 10: cobertura 60%
         self.assertEqual(m.estado, 'DADOS_INSUFICIENTES')
-        alimentar(m, 80, 15, 15)              # 15 s de 20: cobertura 75%
+        alimentar(m, 80, 9, 9)                # 9 s de 10: cobertura 90%
         self.assertEqual(m.estado, 'NORMAL')
 
     def test_fc_alta_em_repouso_precisa_persistir(self):
         m = Monitor()
-        alimentar(m, 120, 5, 20)              # condição vista, mas ainda sem persistência/tempo mínimo
+        alimentar(m, 120, 3, 12)              # condição vista, mas ainda sem persistência/tempo mínimo
         self.assertEqual(m.estado, 'NORMAL')
-        alimentar(m, 120, 25, 25)
+        alimentar(m, 120, 15, 15)
         self.assertEqual(m.estado, 'ATENCAO')
         self.assertEqual(m.historico[-1]['razao'], 'condicao_persistiu')
 
     def test_histerese_na_saida(self):
         m = Monitor()
-        alimentar(m, 120, 5, 25)
-        alimentar(m, 95, 30, 45)              # abaixo de 100, mas acima de 92: continua
+        alimentar(m, 120, 3, 15)
+        alimentar(m, 95, 18, 27)              # abaixo de 100, mas acima de 92: continua
         self.assertEqual(m.estado, 'ATENCAO')
-        alimentar(m, 80, 50, 50)              # média cai abaixo de 92
+        alimentar(m, 80, 30, 30)              # média cai abaixo de 92
         self.assertEqual(m.estado, 'NORMAL')
 
     def test_movimento_ativo_nao_gera_alerta(self):
         m = Monitor()
-        alimentar(m, 120, 5, 40, g=1.6)
+        alimentar(m, 120, 3, 30, g=1.6)
         self.assertEqual(m.estado, 'NORMAL')
 
     def test_sensor_ausente(self):
         m = Monitor()
-        alimentar(m, None, 5, 30)
+        alimentar(m, None, 3, 30)
         self.assertEqual(m.estado, 'DADOS_INSUFICIENTES')
 
     def test_silencio_vira_dados_insuficientes(self):
         m = Monitor()
-        alimentar(m, 80, 5, 20)
+        alimentar(m, 80, 3, 12)
         self.assertEqual(m.estado, 'NORMAL')
-        m.verificar_silencio(40)              # 20 s sem nenhum lote
+        m.verificar_silencio(25)              # 13 s sem nenhum lote
         self.assertEqual(m.estado, 'DADOS_INSUFICIENTES')
         self.assertEqual(m.historico[-1]['razao'], 'sem_leituras_recentes')
 

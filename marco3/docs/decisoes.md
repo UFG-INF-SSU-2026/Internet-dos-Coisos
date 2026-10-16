@@ -28,14 +28,16 @@ Orientação adicional: todos do grupo devem entender a solução de ponta a pon
 |---|---|---|
 | D1 | Só HTTP/REST, sem MQTT | MQTT é opcional. Uma tecnologia a menos para configurar e explicar; REST deixa explícitos os códigos 401 (não autenticado) e 403 (não autorizado). |
 | D2 | Login sem token CSRF; cookie de sessão `SameSite=Lax` | Com `Lax` o navegador não envia o cookie em POST vindo de outro site. Menos código com proteção equivalente para o protótipo. |
-| D3 | Sem heartbeat separado | A consulta de comando a cada 5 s já atualiza o "último contato" do ESP32. |
+| D3 | Sem heartbeat separado | A consulta de comando a cada 3 s já atualiza o "último contato" do ESP32. |
 | D4 | Sem controle de ordem; só descarte de lote repetido (`loteId`) | Cada lote é independente; a repetição (resposta perdida e reenvio) é o único caso que importa. |
 | D5 | A análise (janela, cobertura, histerese, persistência) saiu do ESP32 e foi para `api/regra.py` | Menos código em C. Em Python a regra é testada sem simulador (`test_regra.py`) e é mais fácil de explicar e alterar. A regra é a mesma do Marco 2. |
 | D6 | Um comando por vez, um tipo (`RECONHECER_ALERTA`), 3 status | Um paciente, um dispositivo, uma ação. `PENDENTE → ENTREGUE → EXECUTADO`. |
-| D7 | Regra local mínima no ESP32, só quando a API não responde por 15 s | Sem rede o paciente ainda é alertado (FC > 100 bpm em repouso), sem duplicar a análise completa. |
+| D7 | Regra local mínima no ESP32, só quando a API não responde por 8 s | Sem rede o paciente ainda é alertado (FC > 100 bpm em repouso), sem duplicar a análise completa. |
 | D8 | Ciclo 2 com rotas próprias | Baixo acoplamento: o ciclo 1 não depende do ciclo 2, e o novo ciclo fica visível na demonstração. |
-| D9 | Lote de 5 leituras a cada 5 s | Menos conexões HTTPS (cada uma tem *handshake* TLS); atraso aceitável para a demo. |
-| D10 | *Polling* de comando a cada 5 s | O ESP32 não tem endereço público para a API "empurrar" o comando; 5 s é rápido para a demo e não ocupa o laço o tempo todo. |
+| D9 | Lote de 3 leituras a cada 3 s | Menos conexões HTTPS do que uma por leitura (cada uma tem *handshake* TLS) e resposta rápida para a demo de 5 min. |
+| D10 | *Polling* de comando a cada 3 s | O ESP32 não tem endereço público para a API "empurrar" o comando; 3 s deixa o ciclo 2 visível em poucos segundos. |
+| D15 | Tempos curtos para a demo: janela de 10 leituras (FC) e 5 (movimento), 4 s mínimos em cada estado, 8 s sem lote = `DADOS_INSUFICIENTES` | A demonstração tem 5 min; cada mudança de estado aparece em ~9 s. O projeto original usava janela de 60 s. |
+| D16 | Janela contada em **leituras**, não em horário de chegada; silêncio verificado à parte | Atrasos de rede no Wokwi (1–4 s por requisição HTTPS) não fazem o estado piscar; a queda real é detectada pelos 8 s sem lote. |
 | D11 | Uma chave por dispositivo (`X-Device-Key`), gerada por `gerar_config.py` | Confirmado como suficiente. A chave nunca vai para o GitHub (`.gitignore`). |
 | D12 | Sem fila offline no ESP32 | Lote que falha é descartado; a API percebe a falta de leituras e mostra `DADOS_INSUFICIENTES`. Preferimos mostrar a falta de dados a mostrar dados atrasados como atuais. Um broker não resolveria: com a rede do ESP32 fora, a leitura não sai do dispositivo. |
 | D13 | Dados em memória, sem banco | Um paciente e um cuidador. Reiniciar a API apaga o histórico (limitação assumida). |

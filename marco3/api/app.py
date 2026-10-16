@@ -28,8 +28,8 @@ import uvicorn
 from regra import Monitor
 
 BASE = Path(__file__).resolve().parent
-ONLINE_S = 30          # sem contato do ESP32 por 30 s: "sem contato recente"
-MAX_LEITURAS = 10      # o ESP32 manda 5 por lote; folga para atrasos
+ONLINE_S = 10          # sem contato do ESP32 por 10 s: "sem contato recente"
+MAX_LEITURAS = 10      # o ESP32 manda 3 por lote; folga para atrasos
 
 
 def carregar_env_local():

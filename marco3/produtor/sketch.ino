@@ -4,11 +4,11 @@
  *  O ESP32 agora so MEDE e ATUA. A analise (janela, cobertura, histerese)
  *  foi para a API em Python: marco3/api/regra.py.
  *
- *  Ciclo 1: mede a cada 1 s; a cada 5 leituras, POST /api/leituras.
+ *  Ciclo 1: mede a cada 1 s; a cada 3 leituras, POST /api/leituras.
  *           A resposta traz o estado decidido pela API -> LED e buzzer.
- *  Ciclo 2: a cada 5 s, GET /api/dispositivo/comando.
+ *  Ciclo 2: a cada 3 s, GET /api/dispositivo/comando.
  *           RECONHECER_ALERTA -> silencia o buzzer -> POST /api/dispositivo/comando/ack.
- *  Sem resposta da API por 15 s: MODO LOCAL (regra minima aqui mesmo).
+ *  Sem resposta da API por 8 s: MODO LOCAL (regra minima aqui mesmo).
  *
  *  Toda requisicao e HTTPS com certificado validado + chave X-Device-Key.
  *  O potenciometro NAO e um sensor cardiaco real.
@@ -35,10 +35,11 @@ const uint8_t PINO_FALHA  = 13;  // botao vermelho: simula queda da rede
 const uint8_t PINO_LED    = 25;  // apagado=NORMAL, aceso=ATENCAO, piscando=sem dados
 const uint8_t PINO_BUZZER = 4;
 
+// Tempos curtos para a demonstracao de 5 min.
 const uint32_t AMOSTRA_MS        = 1000;
-const uint8_t  LEITURAS_POR_LOTE = 5;
-const uint32_t COMANDO_MS        = 5000;   // intervalo do polling do ciclo 2 (escolha do grupo)
-const uint32_t MODO_LOCAL_MS     = 15000;  // sem resposta da API por 15 s -> modo local
+const uint8_t  LEITURAS_POR_LOTE = 3;      // um lote a cada 3 s
+const uint32_t COMANDO_MS        = 3000;   // intervalo do polling do ciclo 2 (escolha do grupo)
+const uint32_t MODO_LOCAL_MS     = 8000;   // sem resposta da API por 8 s -> modo local
 const uint32_t TIMEOUT_HTTP_MS   = 5000;
 const uint32_t WIFI_RETRY_MS     = 10000;
 

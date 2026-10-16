@@ -16,10 +16,26 @@
 | 0:00–1:30 | ______ | **Arquitetura e evolução.** Marco 2: ESP32 decidia tudo e publicava por MQTT. Marco 3: ESP32 mede e atua; a API em Python analisa e decide; dois ciclos produtor-consumidor. Decisões D1, D5, D8. | `docs/arquitetura.mmd` |
 | 1:30–3:00 | ______ | **Canal seguro e autenticação do dispositivo.** HTTPS até o túnel; o ESP32 valida o certificado; a chave vai no cabeçalho `X-Device-Key`. | `requisicaoHttps` no sketch; `dispositivo_autenticado` no app. *(Opcional: chave errada no `config.h` → serial mostra `HTTP 401`.)* |
 | 3:00–4:30 | ______ | **Login e autorização do cuidador.** Senha com hash scrypt; cookie de sessão; vínculo cuidador ↔ paciente. | `/painel` sem login → vai para `/login`; senha errada → erro; login certo → painel. `http://127.0.0.1:5000/api/pacientes/patient-9999/estado` → `403`. |
-| 4:30–6:30 | ______ | **Ciclo 1 ao vivo.** Lote a cada 5 s; a API aplica a regra (janela 20 s, cobertura 70%, 100/92 bpm, 2 avaliações) e devolve o estado. | Subir o potenciômetro (>100 bpm). Em 15–25 s: painel `ATENCAO`, LED aceso, buzzer. Mostrar `avaliar()` em `regra.py`. |
+| 4:30–6:30 | ______ | **Ciclo 1 ao vivo.** Lote a cada 3 s; a API aplica a regra (últimas 10 leituras, cobertura 70%, 100/92 bpm, 2 avaliações) e devolve o estado. | Subir o potenciômetro (>100 bpm). Em ~10 s: painel `ATENCAO`, LED aceso, buzzer. Mostrar `avaliar()` em `regra.py`. |
 | 6:30–8:00 | ______ | **Ciclo 2 ao vivo.** O cuidador vira produtor; o ESP32 vira consumidor e produz o ack. | Clicar "Reconhecer alerta" → `PENDENTE` → `ENTREGUE` → buzzer para (LED continua) → `EXECUTADO`. Serial: `comando ...: ack HTTP 200`. |
-| 8:00–9:30 | ______ | **Falha de rede.** Sem fila (D12); o ESP32 entra em modo local (D7). | Botão vermelho (ou tecla `f`). Serial: `MODO LOCAL` após 15 s; painel vai a `DADOS_INSUFICIENTES` / "sem contato recente". Clicar de novo → volta ao normal. |
+| 8:00–9:30 | ______ | **Falha de rede.** Sem fila (D12); o ESP32 entra em modo local (D7). | Botão vermelho (ou tecla `f`). Serial: `MODO LOCAL` após 8 s; painel vai a `DADOS_INSUFICIENTES` / "sem contato recente". Clicar de novo → volta ao normal. |
 | 9:30–10:00 | todos | **Limitações** e perguntas. | `docs/decisoes.md` |
+
+## Sequência da demo ao vivo (≈ 5 min, tudo já rodando)
+
+Cada mudança de estado leva **~10 s** para aparecer: fale enquanto espera.
+
+| Min | Ação na bancada | O que aparece | O que falar enquanto espera |
+|---|---|---|---|
+| 0:00 | Painel aberto em `NORMAL`; serial com `lote N: HTTP 200` | — | "A cada 3 s o ESP32 manda 3 leituras por HTTPS com a chave." |
+| 0:30 | Abrir `/api/pacientes/patient-9999/estado` em outra aba | `403` | autorização do cuidador |
+| 1:00 | Potenciômetro para ~130 bpm | ~10 s: `ATENCAO`, LED aceso, buzzer | regra em `regra.py`: média, 100/92, 2 avaliações |
+| 1:45 | Clicar **Reconhecer alerta** | `PENDENTE` → `ENTREGUE` → `EXECUTADO` em ~3–6 s; buzzer para, LED continua | ciclo 2: quem produz e quem consome; por que o LED continua |
+| 2:45 | Potenciômetro para ~70 bpm | ~10 s: `NORMAL`, LED apaga | histerese |
+| 3:15 | Botão vermelho (ou `f`) | serial `MODO LOCAL` em 8 s; painel `DADOS_INSUFICIENTES` / "sem contato recente" | sem fila (D12), modo local (D7) |
+| 3:45 | Potenciômetro para ~130 com a rede "caída" | LED + buzzer pelo ESP32 sozinho | "sem rede, o paciente ainda é alertado" |
+| 4:15 | Botão vermelho de novo; potenciômetro para ~70 | serial `API respondeu`; painel volta a `NORMAL` | — |
+| 4:45 | Encerrar | — | limitações |
 
 ## Perguntas prováveis (todos devem saber responder)
 
@@ -31,10 +47,10 @@
 6. **Do túnel até a API é criptografado?** Não, mas é dentro do próprio PC. Limitação assumida.
 7. **Quem produz e quem consome em cada ciclo?** Ver tabela em `decisoes.md`.
 8. **Por que a análise saiu do ESP32? O que se perdeu?** Menos C, regra testável em Python. Perdeu-se a decisão completa offline, compensada pelo modo local (D5, D7, D12).
-9. **Por que o ESP32 pergunta pelo comando em vez de receber?** Ele não tem endereço público; HTTP é pedido/resposta. 5 s foi escolha nossa.
+9. **Por que o ESP32 pergunta pelo comando em vez de receber?** Ele não tem endereço público; HTTP é pedido/resposta. 3 s foi escolha nossa.
 10. **E se o ack se perder?** O comando fica `ENTREGUE`, o ESP32 recebe de novo e silencia de novo (sem efeito extra).
 11. **Por que reconhecer não apaga o LED?** O cuidador ter visto não significa que o risco passou (D14).
-12. **O que é cobertura? E histerese?** Cobertura = % de leituras válidas na janela (mín. 70%). Histerese = entra acima de 100, só sai abaixo de 92, para não ficar alternando.
+12. **O que é cobertura? E histerese?** Cobertura = % de leituras válidas entre as últimas 10 (mín. 70%). Histerese = entra acima de 100, só sai abaixo de 92, para não ficar alternando.
 13. **Por que a senha é guardada como hash com salt?** Se o `.env` vazar, a senha não aparece; o salt impede comparar com tabelas prontas.
 14. **E se a API reiniciar?** Os dados estão em memória e se perdem (D13).
 15. **O que é o `loteId`?** `bootId-sequência`. Se o mesmo lote chegar duas vezes, a API ignora; o `bootId` evita colisão depois de reiniciar o ESP32.
