@@ -10,7 +10,7 @@
 
 | Requisito do Marco 3 | Como atendemos |
 |---|---|
-| Evoluir a arquitetura produtor-consumidor do Marco 2 | O ESP32 agora **mede e atua**; a análise foi para a API em Python (`api/regra.py`). A comunicação passou de MQTT para HTTP/REST. |
+| Evoluir a arquitetura produtor-consumidor do Marco 2 | O ESP32 agora **mede e atua**; a análise foi para a API em Python (`api/regra.py`), mas também existe localmente (modo local). A comunicação passou de MQTT para HTTP/REST. |
 | Segurança no canal | Toda mensagem do ESP32 vai **assinada** (HMAC-SHA256 com a chave do dispositivo + horário). A chave nunca trafega; mensagem alterada, forjada ou repetida é recusada. O Wokwi não completa HTTPS (decisão D17). |
 | Identificação e autenticação dos dispositivos | `deviceId` no corpo + assinatura que só quem tem a chave consegue gerar. |
 | Autorização das mensagens | A API confere os vínculos `esp32-borda-01 → patient-0042 → cuidador01` (403 se não bater). |
