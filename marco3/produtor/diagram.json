@@ -67,7 +67,7 @@
       "left": 260,
       "attrs": {
         "color": "green",
-        "label": "silenciar"
+        "label": "sensor off"
       }
     },
     {
@@ -108,7 +108,7 @@
       "top": -105.6,
       "left": 480,
       "attrs": {
-        "text": "alterna indisponibilidade HTTPS e esvaziamento da fila",
+        "text": "simula queda da rede: apos 8 s, MODO LOCAL",
         "fontSize": "11",
         "color": "#6b6b6b"
       }
@@ -159,7 +159,7 @@
       "top": -28.8,
       "left": 0,
       "attrs": {
-        "text": "janela, estado e regra",
+        "text": "mede e atua; a regra fica na API",
         "fontSize": "11",
         "color": "#6b6b6b"
       }

@@ -146,7 +146,6 @@ python -m unittest discover -s marco3/testes -v
 - Sem fila offline: lotes enviados durante a queda são perdidos (decisão D12).
 - Dados em memória: reiniciar a API apaga o histórico.
 - Um paciente, um cuidador, um ESP32; sem limite de tentativas de login.
-- O botão verde do circuito tem o rótulo "silenciar" (herdado do Marco 2): ele simula o **sensor desconectado**, não silencia o alarme.
 
 ---
 

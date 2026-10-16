@@ -30,7 +30,7 @@ const char* DEVICE_ID = "esp32-borda-01";
 const char* ENTITY_ID = "patient-0042";
 
 const uint8_t PINO_FC     = 34;  // potenciometro: FC simulada
-const uint8_t PINO_SENSOR = 15;  // botao verde: simula sensor desconectado (leitura null)
+const uint8_t PINO_SENSOR = 15;  // botao verde "sensor off": simula sensor desconectado (leitura null)
 const uint8_t PINO_FALHA  = 13;  // botao vermelho: simula queda da rede
 const uint8_t PINO_LED    = 25;  // apagado=NORMAL, aceso=ATENCAO, piscando=sem dados
 const uint8_t PINO_BUZZER = 4;
