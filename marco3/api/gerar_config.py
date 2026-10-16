@@ -34,9 +34,9 @@ def main():
     CONFIG_ESP32.write_text(
         '#pragma once\n'
         '// NAO publique este arquivo (GitHub ou Wokwi publico): contem a chave do ESP32.\n'
-        '// Troque a URL abaixo pela URL https://....trycloudflare.com que o\n'
-        '// comando "cloudflared tunnel --url http://127.0.0.1:5000" mostrar.\n'
-        'const char* API_BASE_URL = "https://COLE-AQUI-A-URL-DO-TUNEL.trycloudflare.com";\n'
+        '// Troque a URL abaixo pela que o comando "cloudflared tunnel --url http://127.0.0.1:5000"\n'
+        '// mostrar, usando http:// (o Wokwi nao completa HTTPS; as mensagens vao assinadas).\n'
+        'const char* API_BASE_URL = "http://COLE-AQUI-A-URL-DO-TUNEL.trycloudflare.com";\n'
         f'const char* DEVICE_API_KEY = "{device_key}";\n',
         encoding='utf-8',
     )
@@ -50,7 +50,7 @@ def main():
     print('Usuario: cuidador01')
     print(f'Senha: {senha}')
     print('Nao publique .env nem config.h no GitHub.')
-    print('Proximo passo: inicie a API e o tunel e cole a URL https:// em produtor/config.h')
+    print('Proximo passo: inicie a API e o tunel e cole a URL em produtor/config.h (com http://)')
 
 
 if __name__ == '__main__':

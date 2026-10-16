@@ -1,18 +1,22 @@
-"""Marco 3: uma API REST HTTP + login do cuidador (protótipo acadêmico).
+"""Marco 3: API REST do Internet dos Coisos (protótipo acadêmico).
 
-Sem Neon: os eventos ficam na memória e são perdidos ao reiniciar o servidor.
+Só rotas, autenticação e autorização. A análise das leituras fica em regra.py.
+Dados em memória: reiniciar o servidor apaga tudo.
 Iniciar: python gerar_config.py (uma vez) e python app.py.
+
+Ciclo 1: ESP32 --POST /api/leituras--> API (regra.py) --GET estado--> painel do cuidador
+Ciclo 2: painel --POST comando--> API --GET comando--> ESP32 --POST ack--> API --> painel
 """
 
 import hashlib
 import hmac
+import json
 import os
 import secrets
 import time
-from collections import OrderedDict
+from collections import deque
 from datetime import datetime, timezone
 from pathlib import Path
-from threading import Lock
 from urllib.parse import parse_qs
 
 from fastapi import FastAPI, Request
@@ -21,12 +25,12 @@ from fastapi.templating import Jinja2Templates
 from starlette.middleware.sessions import SessionMiddleware
 import uvicorn
 
+from regra import Monitor
+
 BASE = Path(__file__).resolve().parent
-ESTADOS = {'NORMAL', 'ATENCAO', 'DADOS_INSUFICIENTES'}
-MOVIMENTOS = {'REST', 'ACTIVE', 'INVALIDO'}
-CAMPOS = {'schemaVersion', 'eventType', 'eventId', 'deviceId', 'entityId',
-          'bootId', 'eventTimeMs', 'sequence', 'value', 'unit', 'state',
-          'motion', 'coverageFc', 'coverageMov', 'reason'}
+ONLINE_S = 10          # sem contato do ESP32 por 10 s: "sem contato recente"
+MAX_LEITURAS = 10      # o ESP32 manda 3 por lote; folga para atrasos
+JANELA_ASSINATURA_S = 120  # mensagem assinada há mais de 120 s é recusada (anti-repetição)
 
 
 def carregar_env_local():
@@ -41,7 +45,7 @@ def carregar_env_local():
 
 
 def conferir_senha(senha: str, senha_hash: str) -> bool:
-    """Compara senha com hash scrypt gravado na configuração local."""
+    """Calcula o scrypt da senha digitada com o mesmo salt e compara com o hash salvo."""
     try:
         algoritmo, salt_hex, hash_hex = senha_hash.split('$')
         if algoritmo != 'scrypt':
@@ -53,6 +57,10 @@ def conferir_senha(senha: str, senha_hash: str) -> bool:
         return False
 
 
+def agora_utc():
+    return datetime.now(timezone.utc).isoformat()
+
+
 def create_app():
     carregar_env_local()
     secret = os.getenv('APP_SECRET_KEY', '')
@@ -61,213 +69,201 @@ def create_app():
     if len(secret) < 32 or len(chave) < 24 or not senha_hash:
         raise RuntimeError('Execute primeiro: python gerar_config.py em marco3/api')
 
+    # Vínculos de autorização: este ESP32 publica por este paciente,
+    # e só este cuidador pode ver o paciente e mandar comando.
     device_id = os.getenv('DEVICE_ID', 'esp32-borda-01')
     patient_id = os.getenv('PATIENT_ID', 'patient-0042')
     cuidador = os.getenv('CUIDADOR_USUARIO', 'cuidador01')
-    app = FastAPI(title='Internet dos Coisos | Marco 3', version='3.0',
-                  description='API REST de demonstração para Sistemas Ubíquos (UFG).')
+
+    app = FastAPI(title='Internet dos Coisos | Marco 3', version='3.1')
+    # Cookie assinado com APP_SECRET_KEY. SameSite=Lax: o navegador não envia o
+    # cookie em POST vindo de outro site (por isso não usamos token CSRF).
     app.add_middleware(SessionMiddleware, secret_key=secret,
                        session_cookie='coisos_session', max_age=1800,
                        same_site='lax', https_only=os.getenv('COOKIE_SECURE', '0') == '1')
     templates = Jinja2Templates(directory=str(BASE / 'templates'))
-    lock = Lock()
+
+    # Rotas async rodam uma por vez no mesmo laço de eventos: sem await no meio
+    # das alterações, não é preciso Lock.
+    monitor = Monitor()
     dados = {
-        'evento': None,
-        'boot_id': None,
-        'boots_vistos': set(),
-        'ultima_seq': 0,
+        'lotes_vistos': deque(maxlen=100),   # loteId recentes, para ignorar repetidos
+        'lotes': 0,
         'contato_em': None,
         'hora_contato': None,
-        'recebidos': 0,
-        'duplicados': 0,
-        'saltos': 0,
-        'ids_recentes': OrderedDict(),
+        'comando': None,                     # um comando por vez (ciclo 2)
     }
 
-    @app.middleware('http')
-    async def cabecalhos(request: Request, call_next):
-        resposta = await call_next(request)
-        resposta.headers['X-Content-Type-Options'] = 'nosniff'
-        resposta.headers['X-Frame-Options'] = 'DENY'
-        if request.url.path in ('/', '/login', '/painel') or request.url.path.startswith('/api/'):
-            resposta.headers['Cache-Control'] = 'no-store'
-        return resposta
-
-    def csrf(request):
-        if 'csrf' not in request.session:
-            request.session['csrf'] = secrets.token_urlsafe(20)
-        return request.session['csrf']
-
-    def conferir_csrf(request, form):
-        esperado = request.session.get('csrf', '')
-        recebido = form.get('csrf', '')
-        return bool(esperado and recebido and hmac.compare_digest(esperado, recebido))
-
-    def autenticado(request):
+    # ---------------- autenticação e autorização ----------------
+    def cuidador_logado(request):
+        """Autenticação do cuidador: a sessão diz quem fez login."""
         return request.session.get('usuario') == cuidador
 
-    def chave_valida(request):
-        token = request.headers.get('X-Device-Key', '')
-        return bool(token and hmac.compare_digest(token, chave))
+    def dispositivo_autenticado(request, corpo: bytes):
+        """Autenticação do ESP32: assinatura HMAC-SHA256 da mensagem com a chave do dispositivo.
 
-    def vinculo_valido(corpo):
-        return isinstance(corpo, dict) and (corpo.get('deviceId') == device_id
-                                             and corpo.get('entityId') == patient_id)
+        A chave nunca trafega. Quem não tem a chave não consegue assinar; quem altera
+        o corpo invalida a assinatura; o horário impede repetir uma mensagem antiga.
+        """
+        horario = request.headers.get('X-Timestamp', '')
+        recebida = request.headers.get('X-Assinatura', '')
+        if not horario.isdigit() or abs(time.time() - int(horario)) > JANELA_ASSINATURA_S:
+            return False
+        rota = request.url.path + (f'?{request.url.query}' if request.url.query else '')
+        mensagem = f'{horario}\n{request.method} {rota}\n'.encode() + corpo
+        esperada = hmac.new(chave.encode(), mensagem, hashlib.sha256).hexdigest()
+        return hmac.compare_digest(recebida, esperada)
 
-    async def corpo_json(request):
-        conteudo = await request.body()
-        if len(conteudo) > 4096:
-            return None
+    def dispositivo_autorizado(corpo):
+        """Autorização do ESP32: este dispositivo pode publicar por este paciente?"""
+        return (isinstance(corpo, dict) and corpo.get('deviceId') == device_id
+                and corpo.get('entityId') == patient_id)
+
+    def registrar_contato():
+        dados['contato_em'] = time.monotonic()
+        dados['hora_contato'] = agora_utc()
+
+    def ler_json(corpo: bytes):
         try:
-            import json
-            valor = json.loads(conteudo)
+            valor = json.loads(corpo)
             return valor if isinstance(valor, dict) else None
         except (UnicodeDecodeError, ValueError):
             return None
 
-    async def form_data(request):
-        conteudo = await request.body()
-        if len(conteudo) > 4096:
-            return {}
-        try:
-            dados_form = parse_qs(conteudo.decode('utf-8'), max_num_fields=10)
-            return {campo: valores[0] for campo, valores in dados_form.items() if valores}
-        except (UnicodeDecodeError, ValueError):
-            return {}
-
+    # ---------------- login do cuidador ----------------
     @app.get('/', include_in_schema=False)
     async def inicio(request: Request):
-        return RedirectResponse('/painel' if autenticado(request) else '/login', 303)
+        return RedirectResponse('/painel' if cuidador_logado(request) else '/login', 303)
 
     @app.get('/login', response_class=HTMLResponse, include_in_schema=False)
     async def login_form(request: Request):
-        if autenticado(request):
+        if cuidador_logado(request):
             return RedirectResponse('/painel', 303)
-        return templates.TemplateResponse(request, 'login.html',
-                                          {'erro': None, 'csrf': csrf(request)})
+        return templates.TemplateResponse(request, 'login.html', {'erro': None})
 
     @app.post('/login', response_class=HTMLResponse, include_in_schema=False)
     async def login(request: Request):
-        form = await form_data(request)
-        if not conferir_csrf(request, form):
-            return HTMLResponse('Formulario expirado. Atualize /login.', 400)
-        usuario = form.get('usuario', '')
-        senha = form.get('senha', '')
-        if usuario.isascii() and hmac.compare_digest(usuario, cuidador) and conferir_senha(senha, senha_hash):
+        form = parse_qs((await request.body()).decode('utf-8', 'ignore'))
+        usuario = form.get('usuario', [''])[0]
+        senha = form.get('senha', [''])[0]
+        if usuario == cuidador and conferir_senha(senha, senha_hash):
             request.session.clear()
             request.session['usuario'] = cuidador
             request.session['paciente'] = patient_id
             return RedirectResponse('/painel', 303)
         return templates.TemplateResponse(request, 'login.html',
-                                          {'erro': 'Usuario ou senha incorretos.',
-                                           'csrf': csrf(request)}, status_code=401)
+                                          {'erro': 'Usuario ou senha incorretos.'}, status_code=401)
 
     @app.post('/logout', include_in_schema=False)
     async def logout(request: Request):
-        form = await form_data(request)
-        if not conferir_csrf(request, form):
-            return HTMLResponse('Formulario invalido.', 400)
         request.session.clear()
         return RedirectResponse('/login', 303)
 
     @app.get('/painel', response_class=HTMLResponse, include_in_schema=False)
     async def painel(request: Request):
-        if not autenticado(request):
+        if not cuidador_logado(request):
             return RedirectResponse('/login', 303)
         return templates.TemplateResponse(request, 'painel.html',
-                                          {'usuario': cuidador, 'paciente': patient_id,
-                                           'csrf': csrf(request)})
+                                          {'usuario': cuidador, 'paciente': patient_id})
 
-    @app.post('/api/heartbeat', tags=['Dispositivo'])
-    async def heartbeat(request: Request):
-        if not chave_valida(request):
-            return JSONResponse({'erro': 'Chave do dispositivo invalida'}, 401)
-        corpo = await corpo_json(request)
-        if not vinculo_valido(corpo):
+    # ---------------- ciclo 1: leituras do ESP32 ----------------
+    @app.post('/api/leituras', tags=['Dispositivo'])
+    async def receber_leituras(request: Request):
+        bruto = await request.body()
+        if not dispositivo_autenticado(request, bruto):
+            return JSONResponse({'erro': 'Assinatura do dispositivo invalida'}, 401)
+        corpo = ler_json(bruto)
+        if corpo is None:
+            return JSONResponse({'erro': 'Envie um objeto JSON'}, 400)
+        if not dispositivo_autorizado(corpo):
             return JSONResponse({'erro': 'Dispositivo/paciente nao autorizado'}, 403)
-        with lock:
-            dados['contato_em'] = time.monotonic()
-            dados['hora_contato'] = datetime.now(timezone.utc).isoformat()
-        return {'status': 'ok'}
+        lote_id, leituras = corpo.get('loteId'), corpo.get('leituras')
+        if (not isinstance(lote_id, str) or not lote_id or not isinstance(leituras, list)
+                or not 1 <= len(leituras) <= MAX_LEITURAS
+                or not all(isinstance(l, dict) for l in leituras)):
+            return JSONResponse({'erro': 'Esperado loteId e leituras [{fc, g}]'}, 400)
 
-    @app.post('/api/eventos', tags=['Dispositivo'])
-    async def eventos(request: Request):
-        if not chave_valida(request):
-            return JSONResponse({'erro': 'Chave do dispositivo invalida'}, 401)
-        corpo = await corpo_json(request)
-        if not isinstance(corpo, dict):
-            return JSONResponse({'erro': 'Envie um objeto JSON valido'}, 400)
-        if not vinculo_valido(corpo):
-            return JSONResponse({'erro': 'Dispositivo/paciente nao autorizado'}, 403)
-        faltando = CAMPOS - corpo.keys()
-        if faltando:
-            return JSONResponse({'erro': 'Campos ausentes', 'campos': sorted(faltando)}, 400)
-        if (type(corpo['schemaVersion']) is not int or corpo['schemaVersion'] != 2
-                or corpo['eventType'] != 'vitals.state.changed' or corpo['unit'] != 'bpm'
-                or type(corpo['state']) is not str or corpo['state'] not in ESTADOS
-                or type(corpo['motion']) is not str or corpo['motion'] not in MOVIMENTOS):
-            return JSONResponse({'erro': 'Contrato ou campos do evento invalidos'}, 400)
-        if (not isinstance(corpo['eventId'], str) or not 1 <= len(corpo['eventId']) <= 100
-                or not isinstance(corpo['bootId'], str) or not 1 <= len(corpo['bootId']) <= 24
-                or type(corpo['sequence']) is not int or corpo['sequence'] < 1
-                or type(corpo['eventTimeMs']) is not int or corpo['eventTimeMs'] < 0
-                or not isinstance(corpo['reason'], str) or len(corpo['reason']) > 100):
-            return JSONResponse({'erro': 'Identificadores ou sequencia invalidos'}, 400)
-        if corpo['eventId'] != f"{device_id}-{corpo['bootId']}-{corpo['sequence']}":
-            return JSONResponse({'erro': 'eventId inconsistente'}, 400)
-        for nome in ('coverageFc', 'coverageMov'):
-            valor = corpo[nome]
-            if type(valor) not in (float, int) or not 0 <= valor <= 1:
-                return JSONResponse({'erro': f'{nome} invalido'}, 400)
-        fc = corpo['value']
-        if fc is not None and (type(fc) not in (float, int) or not 0 <= fc <= 250):
-            return JSONResponse({'erro': 'value invalido'}, 400)
-
-        with lock:
-            if corpo['eventId'] in dados['ids_recentes']:
-                dados['duplicados'] += 1
-                return JSONResponse({'status': 'duplicado', 'sequence': corpo['sequence']}, 200)
-            if corpo['bootId'] != dados['boot_id']:
-                if corpo['bootId'] in dados['boots_vistos']:
-                    return JSONResponse({'erro': 'Reinicio antigo rejeitado'}, 409)
-                dados['boots_vistos'].add(corpo['bootId'])
-                dados['boot_id'] = corpo['bootId']
-                dados['ultima_seq'] = 0
-                dados['ids_recentes'].clear()
-            if corpo['sequence'] <= dados['ultima_seq']:
-                return JSONResponse({'erro': 'Evento fora de ordem'}, 409)
-            if corpo['sequence'] > dados['ultima_seq'] + 1:
-                dados['saltos'] += corpo['sequence'] - dados['ultima_seq'] - 1
-            dados['ids_recentes'][corpo['eventId']] = True
-            if len(dados['ids_recentes']) > 150:
-                dados['ids_recentes'].popitem(last=False)
-            dados['ultima_seq'] = corpo['sequence']
-            dados['evento'] = corpo.copy()
-            dados['recebidos'] += 1
-            dados['contato_em'] = time.monotonic()
-            dados['hora_contato'] = datetime.now(timezone.utc).isoformat()
-        return JSONResponse({'status': 'recebido', 'sequence': corpo['sequence']}, 201)
+        registrar_contato()
+        if lote_id in dados['lotes_vistos']:     # o ESP32 reenviou o mesmo lote
+            return {'status': 'duplicado', 'estado': monitor.estado}
+        dados['lotes_vistos'].append(lote_id)
+        dados['lotes'] += 1
+        transicao = monitor.adicionar(leituras, time.monotonic())
+        if transicao:
+            transicao['horaUtc'] = agora_utc()
+        return {'status': 'recebido', 'estado': monitor.estado}
 
     @app.get('/api/pacientes/{codigo}/estado', tags=['Cuidador'])
     async def estado(request: Request, codigo: str):
-        if not autenticado(request):
+        if not cuidador_logado(request):
             return JSONResponse({'erro': 'Faca login'}, 401)
         if request.session.get('paciente') != codigo:
             return JSONResponse({'erro': 'Sem permissao para este paciente'}, 403)
-        with lock:
-            vivo = dados['contato_em'] is not None and (time.monotonic() - dados['contato_em'] < 120)
-            evento = dados['evento']
-            return {
-                'paciente': codigo,
-                'dispositivo': device_id,
-                'online': vivo,
-                'ultimoContatoUtc': dados['hora_contato'],
-                'estado': evento['state'] if evento else 'SEM_EVENTOS',
-                'ultimoEvento': evento,
-                'eventosRecebidos': dados['recebidos'],
-                'eventosDuplicados': dados['duplicados'],
-                'saltosDeSequencia': dados['saltos'],
-            }
+        transicao = monitor.verificar_silencio(time.monotonic())
+        if transicao:
+            transicao['horaUtc'] = agora_utc()
+        online = dados['contato_em'] is not None and time.monotonic() - dados['contato_em'] < ONLINE_S
+        return {
+            'paciente': codigo,
+            'dispositivo': device_id,
+            'online': online,
+            'ultimoContatoUtc': dados['hora_contato'],
+            'estado': monitor.estado or 'SEM_DADOS',
+            'resumo': monitor.resumo,
+            'historico': list(reversed(monitor.historico)),
+            'lotesRecebidos': dados['lotes'],
+            'comando': dados['comando'],
+        }
+
+    # ---------------- ciclo 2: comando do cuidador e ack do ESP32 ----------------
+    @app.post('/api/pacientes/{codigo}/comando', tags=['Cuidador'])
+    async def criar_comando(request: Request, codigo: str):
+        if not cuidador_logado(request):
+            return JSONResponse({'erro': 'Faca login'}, 401)
+        if request.session.get('paciente') != codigo:
+            return JSONResponse({'erro': 'Sem permissao para este paciente'}, 403)
+        if monitor.estado != 'ATENCAO':
+            return JSONResponse({'erro': 'Nao ha alerta ativo para reconhecer'}, 409)
+        c = dados['comando']
+        if c and c['status'] != 'EXECUTADO':     # clique repetido: devolve o mesmo comando
+            return JSONResponse(c, 200)
+        dados['comando'] = {
+            'commandId': 'cmd-' + secrets.token_hex(4), 'tipo': 'RECONHECER_ALERTA',
+            'emitidoPor': cuidador, 'status': 'PENDENTE',
+            'criadoEmUtc': agora_utc(), 'confirmadoEmUtc': None,
+        }
+        return JSONResponse(dados['comando'], 201)
+
+    @app.get('/api/dispositivo/comando', tags=['Dispositivo'])
+    async def entregar_comando(request: Request, deviceId: str = '', entityId: str = ''):
+        if not dispositivo_autenticado(request, b''):
+            return JSONResponse({'erro': 'Assinatura do dispositivo invalida'}, 401)
+        if not dispositivo_autorizado({'deviceId': deviceId, 'entityId': entityId}):
+            return JSONResponse({'erro': 'Dispositivo/paciente nao autorizado'}, 403)
+        registrar_contato()                      # a consulta também prova que o ESP32 está vivo
+        c = dados['comando']
+        if not c or c['status'] == 'EXECUTADO':
+            return {}
+        c['status'] = 'ENTREGUE'                 # entrega de novo até chegar o ack
+        return {'commandId': c['commandId'], 'tipo': c['tipo']}
+
+    @app.post('/api/dispositivo/comando/ack', tags=['Dispositivo'])
+    async def confirmar_comando(request: Request):
+        bruto = await request.body()
+        if not dispositivo_autenticado(request, bruto):
+            return JSONResponse({'erro': 'Assinatura do dispositivo invalida'}, 401)
+        corpo = ler_json(bruto)
+        if not dispositivo_autorizado(corpo):
+            return JSONResponse({'erro': 'Dispositivo/paciente nao autorizado'}, 403)
+        c = dados['comando']
+        if not c or corpo.get('commandId') != c['commandId']:
+            return JSONResponse({'erro': 'Comando desconhecido'}, 404)
+        if c['status'] == 'PENDENTE':
+            return JSONResponse({'erro': 'Comando ainda nao foi entregue'}, 409)
+        if c['status'] == 'ENTREGUE':
+            c['status'] = 'EXECUTADO'
+            c['confirmadoEmUtc'] = agora_utc()
+        return {'status': c['status']}
 
     return app
 

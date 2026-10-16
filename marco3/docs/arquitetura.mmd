@@ -1,12 +1,10 @@
 flowchart TD
-    P["Pessoa monitorada (simulação)"] --> S["Sensores: FC fictícia + MPU6050"]
-    S --> E["ESP32 / Wokwi gratuito<br/>janelas, regra, LED e buzzer"]
-    E -->|"HTTPS POST /api/eventos<br/>X-Device-Key + JSON"| T["Túnel Cloudflare gratuito<br/>https://xxxx.trycloudflare.com"]
-    E -->|"HTTPS POST /api/heartbeat"| T
-    T -->|"dentro do PC"| API["API REST FastAPI (127.0.0.1:5000)<br/>valida chave, contrato e vínculo"]
-    API --> MEM["Memória: último evento e último contato"]
-    C["Cuidador: navegador no PC"] -->|"HTTP POST /login<br/>usuário e senha"| API
-    C -->|"HTTP GET /api/pacientes/id/estado<br/>cookie da sessão"| API
-    API -->|"verifica sessão e vínculo"| MEM
-    MEM -->|"JSON com estado permitido"| C
-    API -.->|"respostas 200 / 201 / 400 / 401 / 403 / 409"| E
+    S["Sensores simulados<br/>potenciômetro (FC) + MPU6050"] --> E["ESP32 / Wokwi<br/>mede, atua (LED/buzzer), modo local"]
+    E -->|"CICLO 1: POST /api/leituras<br/>assinado (HMAC) + lote de 3 leituras"| T["Túnel Cloudflare<br/>xxxx.trycloudflare.com"]
+    E -->|"CICLO 2: GET /api/dispositivo/comando<br/>e POST /api/dispositivo/comando/ack (assinados)"| T
+    T -->|"dentro do PC"| API["API REST FastAPI · app.py<br/>verifica assinatura, sessão e vínculos"]
+    API <--> R["regra.py<br/>janela, cobertura, histerese, estado"]
+    API -.->|"resposta: estado"| E
+    C["Cuidador: navegador"] -->|"POST /login (usuário + senha)"| API
+    C -->|"CICLO 1: GET /api/pacientes/id/estado<br/>cookie de sessão"| API
+    C -->|"CICLO 2: POST /api/pacientes/id/comando<br/>cookie de sessão"| API

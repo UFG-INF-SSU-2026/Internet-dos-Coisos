@@ -1,0 +1,20 @@
+{
+  "_comentario": "Ciclo 2. Cuidador -> API: POST /api/pacientes/{id}/comando (sessao, so em ATENCAO). ESP32 -> API: GET /api/dispositivo/comando?deviceId=...&entityId=... (devolve o comando ou {}). ESP32 -> API: POST /api/dispositivo/comando/ack. Status: PENDENTE -> ENTREGUE -> EXECUTADO.",
+  "comando_na_api": {
+    "commandId": "cmd-9f2a41c0",
+    "tipo": "RECONHECER_ALERTA",
+    "emitidoPor": "cuidador01",
+    "status": "PENDENTE",
+    "criadoEmUtc": "2026-10-16T18:00:00+00:00",
+    "confirmadoEmUtc": null
+  },
+  "entregue_ao_esp32": {
+    "commandId": "cmd-9f2a41c0",
+    "tipo": "RECONHECER_ALERTA"
+  },
+  "ack_do_esp32": {
+    "deviceId": "esp32-borda-01",
+    "entityId": "patient-0042",
+    "commandId": "cmd-9f2a41c0"
+  }
+}
