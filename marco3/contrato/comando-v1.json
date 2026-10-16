@@ -1,0 +1,21 @@
+{
+  "_comentario": "Ciclo 2. Cuidador -> API: POST /api/pacientes/{id}/comandos {\"tipo\":\"RECONHECER_ALERTA\"}. API -> ESP32: GET /api/dispositivo/comandos. ESP32 -> API: POST /api/comandos/{commandId}/ack",
+  "comando_na_api": {
+    "commandId": "cmd-9f2a41c07b3d",
+    "tipo": "RECONHECER_ALERTA",
+    "deviceId": "esp32-borda-01",
+    "entityId": "patient-0042",
+    "emitidoPor": "cuidador01",
+    "status": "PENDENTE | ENTREGUE | EXECUTADO | IGNORADO | EXPIRADO",
+    "criadoEmUtc": "2026-10-16T18:00:00+00:00",
+    "resultado": null,
+    "confirmadoEmUtc": null
+  },
+  "ack_do_esp32": {
+    "deviceId": "esp32-borda-01",
+    "entityId": "patient-0042",
+    "bootId": "AB12CD34",
+    "commandId": "cmd-9f2a41c07b3d",
+    "resultado": "EXECUTADO"
+  }
+}

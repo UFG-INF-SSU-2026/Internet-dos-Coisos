@@ -41,6 +41,11 @@
       </div>
     </section>
     <section>
+      <h2>Ação do cuidador</h2>
+      <button id="btnReconhecer" style="color:#fff;background:#173b72;border:0" disabled>Reconhecer alerta (silenciar buzzer)</button>
+      <p id="comando">Nenhum comando enviado.</p>
+    </section>
+    <section>
       <h2>Última alteração de estado</h2>
       <p id="evento">Ainda não foi recebido nenhum evento.</p>
       <p id="sequencia"></p>
@@ -51,6 +56,15 @@
   <script>
     const rota = {{ url_for('estado', codigo=paciente)|string|tojson }};
     const porId = (id) => document.getElementById(id);
+    const rotaComando = rota.replace('/estado', '/comandos');
+    const csrfToken = {{ csrf|tojson }};
+    porId('btnReconhecer').addEventListener('click', async () => {
+      const r = await fetch(rotaComando, {method:'POST', cache:'no-store',
+        headers:{'Content-Type':'application/json','X-CSRF-Token':csrfToken},
+        body: JSON.stringify({tipo:'RECONHECER_ALERTA'})});
+      porId('comando').textContent = r.ok ? 'Comando enviado; aguardando o dispositivo...' : 'Falha ao enviar (HTTP ' + r.status + ')';
+      atualizar();
+    });
     async function atualizar() {
       try {
         const resposta = await fetch(rota, {cache:'no-store'});
@@ -64,6 +78,10 @@
                          dados.estado === 'ATENCAO' ? 'atencao' : 'insuficiente');
         porId('dispositivo').textContent = 'ESP32: ' + (dados.online ? 'contato recente' : 'sem contato recente');
         porId('quantidade').textContent = dados.eventosRecebidos;
+        const c = dados.ultimoComando;
+        porId('btnReconhecer').disabled = dados.estado !== 'ATENCAO' || (c && (c.status === 'PENDENTE' || c.status === 'ENTREGUE'));
+        if (c) porId('comando').textContent = 'Comando ' + c.commandId + ': ' + c.status +
+            (c.confirmadoEmUtc ? ' (confirmado pelo ESP32 em ' + new Date(c.confirmadoEmUtc).toLocaleTimeString('pt-BR') + ')' : '');
         porId('fc').textContent = e?.value == null ? '—' : Number(e.value).toFixed(1) + ' bpm';
         porId('mov').textContent = e?.motion ?? '—';
         porId('cob').textContent = e ? Math.round(e.coverageFc*100)+'% / '+Math.round(e.coverageMov*100)+'%' : '—';

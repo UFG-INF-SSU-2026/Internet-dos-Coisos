@@ -24,6 +24,10 @@ import uvicorn
 BASE = Path(__file__).resolve().parent
 ESTADOS = {'NORMAL', 'ATENCAO', 'DADOS_INSUFICIENTES'}
 MOVIMENTOS = {'REST', 'ACTIVE', 'INVALIDO'}
+# Marco 3 (ciclo 2): o cuidador PRODUZ comandos; o ESP32 os CONSOME e PRODUZ o ack.
+TIPOS_COMANDO = {'RECONHECER_ALERTA'}
+RESULTADOS_ACK = {'EXECUTADO', 'IGNORADO'}
+TTL_COMANDO_S = 120
 CAMPOS = {'schemaVersion', 'eventType', 'eventId', 'deviceId', 'entityId',
           'bootId', 'eventTimeMs', 'sequence', 'value', 'unit', 'state',
           'motion', 'coverageFc', 'coverageMov', 'reason'}
@@ -82,6 +86,7 @@ def create_app():
         'duplicados': 0,
         'saltos': 0,
         'ids_recentes': OrderedDict(),
+        'comandos': OrderedDict(),   # commandId -> dict
     }
 
     @app.middleware('http')
@@ -257,6 +262,8 @@ def create_app():
         with lock:
             vivo = dados['contato_em'] is not None and (time.monotonic() - dados['contato_em'] < 120)
             evento = dados['evento']
+            expirar_comandos()
+            ultimo = next(reversed(dados['comandos'].values()), None)
             return {
                 'paciente': codigo,
                 'dispositivo': device_id,
@@ -267,7 +274,96 @@ def create_app():
                 'eventosRecebidos': dados['recebidos'],
                 'eventosDuplicados': dados['duplicados'],
                 'saltosDeSequencia': dados['saltos'],
+                'ultimoComando': publico(ultimo) if ultimo else None,
             }
+
+    # ------------------------------------------------------------------
+    # Ciclo 2: cuidador (produtor) -> API -> ESP32 (consumidor) -> ack (produtor) -> painel
+    # ------------------------------------------------------------------
+    def csrf_header(request):
+        esperado = request.session.get('csrf', '')
+        recebido = request.headers.get('X-CSRF-Token', '')
+        return bool(esperado and recebido and hmac.compare_digest(esperado, recebido))
+
+    def expirar_comandos():
+        agora = time.monotonic()
+        for c in dados['comandos'].values():
+            if c['status'] in ('PENDENTE', 'ENTREGUE') and agora - c['_criado'] > TTL_COMANDO_S:
+                c['status'] = 'EXPIRADO'
+
+    def publico(c):
+        return {k: v for k, v in c.items() if not k.startswith('_')}
+
+    @app.post('/api/pacientes/{codigo}/comandos', tags=['Cuidador'])
+    async def criar_comando(request: Request, codigo: str):
+        if not autenticado(request):
+            return JSONResponse({'erro': 'Faca login'}, 401)
+        if request.session.get('paciente') != codigo:
+            return JSONResponse({'erro': 'Sem permissao para este paciente'}, 403)
+        if not csrf_header(request):
+            return JSONResponse({'erro': 'Token CSRF ausente ou invalido'}, 403)
+        corpo = await corpo_json(request)
+        if not isinstance(corpo, dict) or corpo.get('tipo') not in TIPOS_COMANDO:
+            return JSONResponse({'erro': 'Tipo de comando invalido',
+                                 'permitidos': sorted(TIPOS_COMANDO)}, 400)
+        with lock:
+            expirar_comandos()
+            evento = dados['evento']
+            if not evento or evento['state'] != 'ATENCAO':
+                return JSONResponse({'erro': 'Nao ha alerta ativo para reconhecer'}, 409)
+            # Idempotencia: clique repetido nao cria segundo comando em aberto.
+            for c in dados['comandos'].values():
+                if c['tipo'] == corpo['tipo'] and c['status'] in ('PENDENTE', 'ENTREGUE'):
+                    return JSONResponse(publico(c), 200)
+            comando_id = 'cmd-' + secrets.token_hex(6)
+            c = {'commandId': comando_id, 'tipo': corpo['tipo'], 'deviceId': device_id,
+                 'entityId': patient_id, 'emitidoPor': cuidador, 'status': 'PENDENTE',
+                 'criadoEmUtc': datetime.now(timezone.utc).isoformat(),
+                 'resultado': None, 'confirmadoEmUtc': None, '_criado': time.monotonic()}
+            dados['comandos'][comando_id] = c
+            while len(dados['comandos']) > 50:
+                dados['comandos'].popitem(last=False)
+            return JSONResponse(publico(c), 201)
+
+    @app.get('/api/dispositivo/comandos', tags=['Dispositivo'])
+    async def comandos_pendentes(request: Request, deviceId: str = '', entityId: str = ''):
+        if not chave_valida(request):
+            return JSONResponse({'erro': 'Chave do dispositivo invalida'}, 401)
+        if not vinculo_valido({'deviceId': deviceId, 'entityId': entityId}):
+            return JSONResponse({'erro': 'Dispositivo/paciente nao autorizado'}, 403)
+        with lock:
+            expirar_comandos()
+            dados['contato_em'] = time.monotonic()
+            dados['hora_contato'] = datetime.now(timezone.utc).isoformat()
+            pendentes = []
+            for c in dados['comandos'].values():
+                if c['status'] in ('PENDENTE', 'ENTREGUE'):   # ENTREGUE: reentrega ate o ack
+                    c['status'] = 'ENTREGUE'
+                    pendentes.append({'commandId': c['commandId'], 'tipo': c['tipo']})
+            return {'comandos': pendentes}
+
+    @app.post('/api/comandos/{comando_id}/ack', tags=['Dispositivo'])
+    async def ack_comando(request: Request, comando_id: str):
+        if not chave_valida(request):
+            return JSONResponse({'erro': 'Chave do dispositivo invalida'}, 401)
+        corpo = await corpo_json(request)
+        if not vinculo_valido(corpo):
+            return JSONResponse({'erro': 'Dispositivo/paciente nao autorizado'}, 403)
+        if corpo.get('commandId') != comando_id or corpo.get('resultado') not in RESULTADOS_ACK:
+            return JSONResponse({'erro': 'Ack invalido'}, 400)
+        with lock:
+            expirar_comandos()
+            c = dados['comandos'].get(comando_id)
+            if c is None:
+                return JSONResponse({'erro': 'Comando desconhecido'}, 404)
+            if c['status'] in ('EXECUTADO', 'IGNORADO'):      # ack repetido: idempotente
+                return JSONResponse({'status': c['status']}, 200)
+            if c['status'] != 'ENTREGUE':
+                return JSONResponse({'erro': 'Comando nao esta aguardando ack',
+                                     'status': c['status']}, 409)
+            c['status'] = c['resultado'] = corpo['resultado']
+            c['confirmadoEmUtc'] = datetime.now(timezone.utc).isoformat()
+            return JSONResponse({'status': c['status']}, 201)
 
     return app
 

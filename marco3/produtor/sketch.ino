@@ -115,6 +115,7 @@ Estado   estadoAtual        = EST_DESCONHECIDO;
 uint32_t entrouNoEstadoMs   = 0;
 uint8_t  avaliacoesCondicao = 0;
 bool     alertaAtivo        = false;
+bool     alertaSilenciado   = false;   // ciclo 2: cuidador reconheceu o alerta (buzzer mudo)
 
 // Fila local: preserva eventos produzidos enquanto a API HTTP esta ausente.
 char     fila[FILA_TAMANHO][440];
@@ -303,6 +304,78 @@ void enviarHeartbeat(uint32_t agora) {
   Serial.printf("[%lu] heartbeat: HTTP %d\n", millis(), codigo);
 }
 
+/* == CICLO 2: ESP32 CONSOME comando do cuidador e PRODUZ o ack ============ */
+// Fluxo: painel (cuidador) --POST comando--> API --GET pendentes--> ESP32
+//        ESP32 executa localmente --POST ack--> API --> painel mostra EXECUTADO.
+// Semantica at-least-once: sem ack, a API reentrega; executar de novo e idempotente.
+const uint32_t CONSULTA_COMANDO_MS = 5000;
+uint32_t proximaConsultaComandoMs = 0;
+
+// GET autenticado (mesma validacao TLS e mesma chave do POST); devolve o corpo.
+int getJson(const String& rota, String& resposta) {
+  if (falhaSimulada || WiFi.status() != WL_CONNECTED) return -1;
+  String base = String(API_BASE_URL);
+  if (base.endsWith("/")) base.remove(base.length() - 1);
+  if (!base.startsWith("https://")) return -1;
+  WiFiClientSecure cliente;
+  cliente.setCACert(HTTPS_ROOT_CA);
+  HTTPClient http;
+  http.setConnectTimeout(TIMEOUT_HTTP_MS);
+  http.setTimeout(TIMEOUT_HTTP_MS);
+  if (!http.begin(cliente, base + rota)) return -1;
+  http.addHeader("X-Device-Key", DEVICE_API_KEY);
+  int codigo = http.GET();
+  if (codigo == 200) resposta = http.getString();
+  http.end();
+  return codigo;
+}
+
+// Extrai "chave":"valor" de um JSON compacto (evita dependencia de ArduinoJson).
+bool extrairCampo(const String& json, const char* chave, char* saida, size_t n) {
+  String busca = String("\"") + chave + "\":\"";
+  int i = json.indexOf(busca);
+  if (i < 0) return false;
+  i += busca.length();
+  int f = json.indexOf('"', i);
+  if (f < 0 || (size_t)(f - i) >= n) return false;
+  json.substring(i, f).toCharArray(saida, n);
+  return true;
+}
+
+void executarComando(const char* id, const char* tipo) {
+  const char* resultado = "IGNORADO";
+  // Reconhecer so faz sentido durante ATENCAO. Nao muda o estado nem apaga o LED:
+  // so NORMAL encerra o alerta (politica herdada do Marco 2).
+  if (strcmp(tipo, "RECONHECER_ALERTA") == 0 && estadoAtual == EST_ATENCAO) {
+    alertaSilenciado = true;
+    atualizarAtuacao();
+    resultado = "EXECUTADO";
+  }
+  char payload[220];
+  snprintf(payload, sizeof(payload),
+           "{\"deviceId\":\"%s\",\"entityId\":\"%s\",\"bootId\":\"%s\","
+           "\"commandId\":\"%s\",\"resultado\":\"%s\"}",
+           DEVICE_ID, ENTITY_ID, bootId, id, resultado);
+  String rota = String("/api/comandos/") + id + "/ack";
+  int codigo = postJson(rota.c_str(), payload);
+  Serial.printf("[%lu] comando %s (%s) -> %s; ack HTTP %d\n",
+                millis(), id, tipo, resultado, codigo);
+}
+
+void consultarComandos(uint32_t agora) {
+  if ((int32_t)(agora - proximaConsultaComandoMs) < 0) return;
+  proximaConsultaComandoMs = agora + CONSULTA_COMANDO_MS;
+  if (falhaSimulada || filaTamanho() > 0) return;   // eventos de estado tem prioridade
+  String rota = String("/api/dispositivo/comandos?deviceId=") + DEVICE_ID +
+                "&entityId=" + ENTITY_ID;
+  String resposta;
+  if (getJson(rota, resposta) != 200) return;
+  char id[24], tipo[24];
+  if (!extrairCampo(resposta, "commandId", id, sizeof(id)) ||
+      !extrairCampo(resposta, "tipo", tipo, sizeof(tipo))) return;  // lista vazia
+  executarComando(id, tipo);
+}
+
 void alternarFalhaSimulada() {
   falhaSimulada = !falhaSimulada;
   if (falhaSimulada) {
@@ -375,8 +448,8 @@ void transitarPara(Estado novo, const char* razao, uint32_t agora,
 
   estadoAtual      = novo;
   entrouNoEstadoMs = agora;
-  if (novo == EST_ATENCAO) alertaAtivo = true;
-  if (novo == EST_NORMAL)  alertaAtivo = false;
+  if (novo == EST_ATENCAO) { alertaAtivo = true; alertaSilenciado = false; } // novo episodio
+  if (novo == EST_NORMAL)  { alertaAtivo = false; alertaSilenciado = false; }
 
   atualizarAtuacao();
   emitirEvento("vitals.state.changed", agora, razao, fcMedia, mov, cobFc, cobMov);
@@ -423,7 +496,7 @@ bool ledPiscando() {
 
 void atualizarAtuacao() {
   if (!ledPiscando()) digitalWrite(PINO_LED, estadoAtual == EST_ATENCAO ? HIGH : LOW);
-  digitalWrite(PINO_BUZZER, alertaAtivo ? HIGH : LOW);
+  digitalWrite(PINO_BUZZER, (alertaAtivo && !alertaSilenciado) ? HIGH : LOW);
 }
 
 void piscarLed(uint32_t agora) {
@@ -509,6 +582,7 @@ void loop() {
   }
   enviarDaFila(agora);
   enviarHeartbeat(agora);
+  consultarComandos(agora);
 
   if (chegouAHora(agora, proximaAmostraMs, PERIODO_AMOSTRAGEM_MS)) {
     float bpm, magG;
