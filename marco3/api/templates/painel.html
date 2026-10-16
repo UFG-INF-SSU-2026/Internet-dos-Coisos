@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Painel | Internet dos Coisos</title>
+  <style>
+    body {font-family:system-ui,Arial,sans-serif;color:#172136;background:#f1f5f9;margin:0}
+    header {background:#173b72;color:white;padding:18px max(18px,calc((100vw - 900px)/2));
+            display:flex;align-items:center;justify-content:space-between;gap:15px}
+    header strong {font-size:1.2rem} header small {display:block;opacity:.8}
+    main {max-width:900px;padding:24px 18px;margin:0 auto}
+    section {background:white;padding:24px;border-radius:14px;box-shadow:0 3px 15px #15263b17;margin-bottom:16px}
+    .grade {display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px}
+    .metrica {border:1px solid #dbe2ea;border-radius:10px;padding:15px}
+    .titulo {font-size:.82rem;color:#55667c} .valor {font-size:1.35rem;margin-top:8px;font-weight:700}
+    .status {display:inline-block;padding:8px 12px;background:#e5ebf3;border-radius:30px;font-weight:700}
+    .normal {background:#dcfce7;color:#166534} .atencao {background:#fee2e2;color:#991b1b}
+    .insuficiente {background:#dbeafe;color:#1e40af}
+    button {color:#173b72;background:white;border:1px solid #fff;border-radius:6px;padding:8px 12px;cursor:pointer}
+    h2 {font-size:1.1rem} footer {color:#53637b;font-size:.85rem}
+  </style>
+</head>
+<body>
+  <header>
+    <div><strong>Monitoramento · Internet dos Coisos</strong><small>Cuidador: {{ usuario }}</small></div>
+    <form action="{{ url_for('logout') }}" method="post">
+      <input type="hidden" name="csrf" value="{{ csrf }}"><button type="submit">Sair</button>
+    </form>
+  </header>
+  <main>
+    <section>
+      <h2>Paciente {{ paciente }} (identificador fictício)</h2>
+      <p><span class="status" id="estado">Carregando...</span></p>
+      <p id="dispositivo">Aguardando resposta da API...</p>
+      <div class="grade">
+        <div class="metrica"><div class="titulo">Frequência cardíaca média</div><div class="valor" id="fc">—</div></div>
+        <div class="metrica"><div class="titulo">Movimento</div><div class="valor" id="mov">—</div></div>
+        <div class="metrica"><div class="titulo">Cobertura FC / MOV</div><div class="valor" id="cob">—</div></div>
+        <div class="metrica"><div class="titulo">Eventos recebidos</div><div class="valor" id="quantidade">0</div></div>
+      </div>
+    </section>
+    <section>
+      <h2>Última alteração de estado</h2>
+      <p id="evento">Ainda não foi recebido nenhum evento.</p>
+      <p id="sequencia"></p>
+      <p id="contato">Último contato: —</p>
+    </section>
+    <footer>Atualização automática a cada 3 s por HTTP GET. Protótipo didático: não utilizar para decisões médicas.</footer>
+  </main>
+  <script>
+    const rota = {{ url_for('estado', codigo=paciente)|string|tojson }};
+    const porId = (id) => document.getElementById(id);
+    async function atualizar() {
+      try {
+        const resposta = await fetch(rota, {cache:'no-store'});
+        if (resposta.status === 401) {location.replace('/login'); return;}
+        if (!resposta.ok) throw new Error('HTTP ' + resposta.status);
+        const dados = await resposta.json();
+        const e = dados.ultimoEvento;
+        const badge = porId('estado');
+        badge.textContent = dados.estado.replaceAll('_',' ');
+        badge.className = 'status ' + (dados.estado === 'NORMAL' ? 'normal' :
+                         dados.estado === 'ATENCAO' ? 'atencao' : 'insuficiente');
+        porId('dispositivo').textContent = 'ESP32: ' + (dados.online ? 'contato recente' : 'sem contato recente');
+        porId('quantidade').textContent = dados.eventosRecebidos;
+        porId('fc').textContent = e?.value == null ? '—' : Number(e.value).toFixed(1) + ' bpm';
+        porId('mov').textContent = e?.motion ?? '—';
+        porId('cob').textContent = e ? Math.round(e.coverageFc*100)+'% / '+Math.round(e.coverageMov*100)+'%' : '—';
+        porId('evento').textContent = e ? (e.state+' · '+e.reason) : 'Ainda não foi recebido nenhum evento.';
+        porId('sequencia').textContent = e ? ('Seq. '+e.sequence+' | Reinício '+e.bootId+
+                     ' | Saltos detectados: '+dados.saltosDeSequencia) : '';
+        porId('contato').textContent = 'Último contato: ' +
+                       (dados.ultimoContatoUtc ? new Date(dados.ultimoContatoUtc).toLocaleString('pt-BR') : '—');
+      } catch (erro) {
+        porId('dispositivo').textContent = 'Falha ao consultar a API: ' + erro.message;
+      }
+    }
+    atualizar(); setInterval(atualizar, 3000);
+  </script>
+</body>
+</html>

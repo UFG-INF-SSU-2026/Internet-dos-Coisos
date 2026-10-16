@@ -1,0 +1,12 @@
+flowchart TD
+    P["Pessoa monitorada (simulação)"] --> S["Sensores: FC fictícia + MPU6050"]
+    S --> E["ESP32 / Wokwi gratuito<br/>janelas, regra, LED e buzzer"]
+    E -->|"HTTPS POST /api/eventos<br/>X-Device-Key + JSON"| T["Túnel Cloudflare gratuito<br/>https://xxxx.trycloudflare.com"]
+    E -->|"HTTPS POST /api/heartbeat"| T
+    T -->|"dentro do PC"| API["API REST FastAPI (127.0.0.1:5000)<br/>valida chave, contrato e vínculo"]
+    API --> MEM["Memória: último evento e último contato"]
+    C["Cuidador: navegador no PC"] -->|"HTTP POST /login<br/>usuário e senha"| API
+    C -->|"HTTP GET /api/pacientes/id/estado<br/>cookie da sessão"| API
+    API -->|"verifica sessão e vínculo"| MEM
+    MEM -->|"JSON com estado permitido"| C
+    API -.->|"respostas 200 / 201 / 400 / 401 / 403 / 409"| E

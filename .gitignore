@@ -1,2 +1,14 @@
+# Python
 __pycache__/
-*.pyc
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+
+# Credenciais de demonstracao (NUNCA COMMITAR)
+marco3/api/.env
+marco3/produtor/config.h
+
+# Ambiente local
+.DS_Store
+.vscode/
