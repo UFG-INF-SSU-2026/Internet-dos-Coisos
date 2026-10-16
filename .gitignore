@@ -10,5 +10,6 @@ marco3/api/.env
 marco3/produtor/config.h
 
 # Ambiente local
+temp/
 .DS_Store
 .vscode/
