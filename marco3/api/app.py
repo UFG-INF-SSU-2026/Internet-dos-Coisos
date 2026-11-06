@@ -1,13 +1,17 @@
 """Marco 3: API REST do Internet dos Coisos (protótipo acadêmico).
 
-Só rotas, autenticação e autorização. A análise das leituras fica em regra.py.
-Dados em memória: reiniciar o servidor apaga tudo.
+Só rotas, autenticação e autorização. A análise das leituras fica em regra.py
+e a persistência (opcional) em armazenamento.py.
+Dados em memória; com DATABASE_URL no .env, leituras, transições de estado e
+comandos também são gravados no TimescaleDB. Se o banco estiver fora do ar, a API
+segue funcionando em memória (as gravações desse período se perdem).
 Iniciar: python gerar_config.py (uma vez) e python app.py.
 
 Ciclo 1: ESP32 --POST /api/leituras--> API (regra.py) --GET estado--> painel do cuidador
 Ciclo 2: painel --POST comando--> API --GET comando--> ESP32 --POST ack--> API --> painel
 """
 
+import asyncio
 import hashlib
 import hmac
 import json
@@ -61,7 +65,7 @@ def agora_utc():
     return datetime.now(timezone.utc).isoformat()
 
 
-def create_app():
+def create_app(armazenamento=None):
     carregar_env_local()
     secret = os.getenv('APP_SECRET_KEY', '')
     chave = os.getenv('DEVICE_API_KEY', '')
@@ -69,13 +73,25 @@ def create_app():
     if len(secret) < 32 or len(chave) < 24 or not senha_hash:
         raise RuntimeError('Execute primeiro: python gerar_config.py em marco3/api')
 
+    # Banco temporal opcional. Sem DATABASE_URL (ou sem a biblioteca psycopg) a API
+    # roda só em memória; com o banco fora do ar ela também sobe normalmente.
+    url_banco = os.getenv('DATABASE_URL', '')
+    if armazenamento is None and url_banco:
+        try:
+            from armazenamento import Armazenamento
+            armazenamento = Armazenamento(url_banco)
+            if armazenamento.verificar():
+                print('[armazenamento] TimescaleDB conectado')
+        except ImportError as erro:
+            print(f'[armazenamento] desligado ({erro}). Rode: pip install -r requirements.txt')
+
     # Vínculos de autorização: este ESP32 publica por este paciente,
     # e só este cuidador pode ver o paciente e mandar comando.
     device_id = os.getenv('DEVICE_ID', 'esp32-borda-01')
     patient_id = os.getenv('PATIENT_ID', 'patient-0042')
     cuidador = os.getenv('CUIDADOR_USUARIO', 'cuidador01')
 
-    app = FastAPI(title='Internet dos Coisos | Marco 3', version='3.1')
+    app = FastAPI(title='Internet dos Coisos | Marco 3', version='3.2')
     # Cookie assinado com APP_SECRET_KEY. SameSite=Lax: o navegador não envia o
     # cookie em POST vindo de outro site (por isso não usamos token CSRF).
     app.add_middleware(SessionMiddleware, secret_key=secret,
@@ -84,7 +100,9 @@ def create_app():
     templates = Jinja2Templates(directory=str(BASE / 'templates'))
 
     # Rotas async rodam uma por vez no mesmo laço de eventos: sem await no meio
-    # das alterações, não é preciso Lock.
+    # das alterações em memória, não é preciso Lock. Por isso o único await de
+    # cada rota (a gravação no banco) vem DEPOIS de todas as alterações, e a
+    # gravação recebe cópias dos dados, nunca os objetos compartilhados.
     monitor = Monitor()
     dados = {
         'lotes_vistos': deque(maxlen=100),   # loteId recentes, para ignorar repetidos
@@ -129,6 +147,15 @@ def create_app():
             return valor if isinstance(valor, dict) else None
         except (UnicodeDecodeError, ValueError):
             return None
+
+    async def gravar(metodo, *args):
+        """Grava no banco fora do laço de eventos. Nenhuma falha do banco derruba a rota."""
+        if armazenamento is None:
+            return
+        try:
+            await asyncio.to_thread(getattr(armazenamento, metodo), *args)
+        except Exception as erro:       # rede de segurança: o armazenamento já trata o banco fora do ar
+            print(f'[armazenamento] {metodo} falhou: {erro}')
 
     # ---------------- login do cuidador ----------------
     @app.get('/', include_in_schema=False)
@@ -188,10 +215,17 @@ def create_app():
             return {'status': 'duplicado', 'estado': monitor.estado}
         dados['lotes_vistos'].append(lote_id)
         dados['lotes'] += 1
+        agora = datetime.now(timezone.utc)
         transicao = monitor.adicionar(leituras, time.monotonic())
         if transicao:
-            transicao['horaUtc'] = agora_utc()
-        return {'status': 'recebido', 'estado': monitor.estado}
+            transicao['horaUtc'] = agora.isoformat()
+        resposta = {'status': 'recebido', 'estado': monitor.estado}
+
+        # Todas as alterações em memória terminaram; só agora há um await.
+        await gravar('gravar_lote', patient_id, device_id, lote_id, list(leituras), agora)
+        if transicao:
+            await gravar('gravar_transicao', patient_id, dict(transicao), agora)
+        return resposta
 
     @app.get('/api/pacientes/{codigo}/estado', tags=['Cuidador'])
     async def estado(request: Request, codigo: str):
@@ -199,11 +233,12 @@ def create_app():
             return JSONResponse({'erro': 'Faca login'}, 401)
         if request.session.get('paciente') != codigo:
             return JSONResponse({'erro': 'Sem permissao para este paciente'}, 403)
+        agora = datetime.now(timezone.utc)
         transicao = monitor.verificar_silencio(time.monotonic())
         if transicao:
-            transicao['horaUtc'] = agora_utc()
+            transicao['horaUtc'] = agora.isoformat()
         online = dados['contato_em'] is not None and time.monotonic() - dados['contato_em'] < ONLINE_S
-        return {
+        resposta = {
             'paciente': codigo,
             'dispositivo': device_id,
             'online': online,
@@ -214,6 +249,9 @@ def create_app():
             'lotesRecebidos': dados['lotes'],
             'comando': dados['comando'],
         }
+        if transicao:
+            await gravar('gravar_transicao', codigo, dict(transicao), agora)
+        return resposta
 
     # ---------------- ciclo 2: comando do cuidador e ack do ESP32 ----------------
     @app.post('/api/pacientes/{codigo}/comando', tags=['Cuidador'])
@@ -232,7 +270,9 @@ def create_app():
             'emitidoPor': cuidador, 'status': 'PENDENTE',
             'criadoEmUtc': agora_utc(), 'confirmadoEmUtc': None,
         }
-        return JSONResponse(dados['comando'], 201)
+        resposta = dict(dados['comando'])
+        await gravar('gravar_comando', codigo, dict(dados['comando']), datetime.now(timezone.utc))
+        return JSONResponse(resposta, 201)
 
     @app.get('/api/dispositivo/comando', tags=['Dispositivo'])
     async def entregar_comando(request: Request, deviceId: str = '', entityId: str = ''):
@@ -244,8 +284,12 @@ def create_app():
         c = dados['comando']
         if not c or c['status'] == 'EXECUTADO':
             return {}
+        primeira_entrega = c['status'] == 'PENDENTE'
         c['status'] = 'ENTREGUE'                 # entrega de novo até chegar o ack
-        return {'commandId': c['commandId'], 'tipo': c['tipo']}
+        resposta = {'commandId': c['commandId'], 'tipo': c['tipo']}
+        if primeira_entrega:                     # só a mudança de status vai para o banco
+            await gravar('gravar_comando', patient_id, dict(c), datetime.now(timezone.utc))
+        return resposta
 
     @app.post('/api/dispositivo/comando/ack', tags=['Dispositivo'])
     async def confirmar_comando(request: Request):
@@ -260,10 +304,14 @@ def create_app():
             return JSONResponse({'erro': 'Comando desconhecido'}, 404)
         if c['status'] == 'PENDENTE':
             return JSONResponse({'erro': 'Comando ainda nao foi entregue'}, 409)
-        if c['status'] == 'ENTREGUE':
+        confirmado_agora = c['status'] == 'ENTREGUE'
+        if confirmado_agora:
             c['status'] = 'EXECUTADO'
             c['confirmadoEmUtc'] = agora_utc()
-        return {'status': c['status']}
+        resposta = {'status': c['status']}
+        if confirmado_agora:
+            await gravar('gravar_comando', patient_id, dict(c), datetime.now(timezone.utc))
+        return resposta
 
     return app
 
