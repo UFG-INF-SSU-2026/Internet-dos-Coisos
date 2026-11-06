@@ -22,7 +22,7 @@
 #include <Adafruit_Sensor.h>
 #include "mbedtls/md.h"        // HMAC-SHA256
 #include "esp_sntp.h"          // intervalo de re-sincronizacao do relogio
-#include "config.h"            // API_BASE_URL e DEVICE_API_KEY (gerado por gerar_config.py, NAO versionar)
+#include "config.h"            // URL e chave PRIVADA geradas por gerar_config.py
 
 /* == CONFIGURACAO ======================================================== */
 
@@ -67,11 +67,36 @@ uint32_t ultimaRespostaMs = 0, proximaAmostraMs = 0, proximoComandoMs = 0, proxi
 
 /* == 1. MEDIR ============================================================ */
 
+// Cenarios didaticos acionados pelo Monitor Serial: 0=potenciometro/MPU;
+// 1=normal; 2=FC alta em repouso; 3=sensor ausente; 4=movimento;
+// a=ciclo automatico de 65 s. A simulacao nunca representa dados clinicos.
+char cenario = '0';
+uint32_t inicioCicloMs = 0;
+
+char cenarioEmExecucao() {
+  if (cenario != 'a') return cenario;
+  uint32_t seg = ((millis() - inicioCicloMs) / 1000) % 65;
+  if (seg < 15) return '1';     // Normal por 15 s
+  if (seg < 35) return '2';     // FC alta e repouso por 20 s
+  if (seg < 45) return '3';     // Sensor ausente por 10 s
+  return '1';                 // Recuperacao por 20 s
+}
+
 float lerFc() {
-  return analogRead(PINO_FC) / 4095.0 * FC_ESCALA_MAX;
+  switch (cenarioEmExecucao()) {
+    case '1': return 78.0;
+    case '2': return 135.0;
+    case '3': return NAN;
+    case '4': return 135.0;
+    default: return analogRead(PINO_FC) / 4095.0 * FC_ESCALA_MAX;
+  }
 }
 
 float lerAceleracaoG() {
+  switch (cenarioEmExecucao()) {
+    case '1': case '2': case '3': return 1.0;
+    case '4': return 1.75;
+  }
   if (!mpuPresente) return NAN;
   sensors_event_t a, gyro, temp;
   if (!mpu.getEvent(&a, &gyro, &temp)) return NAN;
@@ -84,7 +109,7 @@ float lerAceleracaoG() {
 // Assinatura HMAC-SHA256 da mensagem com a chave do dispositivo (decisao D17):
 //   HMAC(chave, horario + "\n" + METODO + " " + rota + "\n" + corpo)
 // A chave nunca trafega. A API recalcula: chave errada ou corpo alterado -> 401;
-// horario com mais de 120 s -> 401 (impede repetir uma mensagem antiga).
+// horario com mais de 120 s -> 401 (replays dentro da janela ainda sao possiveis).
 void assinar(const char* metodo, const String& rota, const char* corpo, char* horario, char* hex) {
   snprintf(horario, 12, "%lu", (unsigned long)time(nullptr));
   String mensagem = String(horario) + "\n" + metodo + " " + rota + "\n" + (corpo ? corpo : "");
@@ -162,7 +187,8 @@ void enviarLote() {
     if (estado != novo) Serial.printf("[%lu] estado (API): %s -> %s\n", millis(), estado.c_str(), novo);
     estado = novo;
   }
-  // Sem fila (decisao D12): lote que falhou e descartado; a API mostra DADOS_INSUFICIENTES.
+  // Sem fila OFFLINE no dispositivo (D12). A FILA NOVA fica na API,
+  // entre recebimento HTTP e processamento: lote que nao saiu do ESP32 e perdido.
   Serial.printf("[%lu] lote %lu: HTTP %d%s\n", millis(), (unsigned long)loteSeq, codigo,
                 codigo == 200 ? "" : " (descartado)");
 }
@@ -231,6 +257,11 @@ void lerFalha() {
   while (Serial.available()) {
     char c = Serial.read();
     if (c == 'f' || c == 'F') alternarFalha();
+    if (c == '0' || c == '1' || c == '2' || c == '3' || c == '4' || c == 'a') {
+      cenario = c;
+      inicioCicloMs = millis();
+      Serial.printf("CENARIO: %c (0=manual, 1=normal, 2=alerta, 3=sem FC, 4=movimento, a=automatico)\n", c);
+    }
   }
 }
 
@@ -243,6 +274,7 @@ void setup() {
   pinMode(PINO_BUZZER, OUTPUT);
 
   Serial.println("\n=== MARCO 3 | ESP32 -> HTTP assinado -> API ===");
+  Serial.println("Cenarios de teste no Serial: 0=manual 1=normal 2=alerta 3=sem sensor 4=movimento a=automatico f=falha de rede");
   Serial.printf("API: %s\n", API_BASE_URL);
   if (strstr(API_BASE_URL, "COLE-AQUI")) Serial.println("ATENCAO: cole em config.h a URL do tunel");
   snprintf(bootId, sizeof(bootId), "%08lX", (unsigned long)esp_random());

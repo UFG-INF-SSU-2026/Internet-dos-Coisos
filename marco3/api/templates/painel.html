@@ -19,6 +19,8 @@
     .insuficiente {background:#dbeafe;color:#1e40af}
     button {color:#173b72;background:white;border:1px solid #fff;border-radius:6px;padding:8px 12px;cursor:pointer}
     #btnReconhecer {color:#fff;background:#173b72;border:0} #btnReconhecer:disabled {opacity:.45;cursor:default}
+    #grafico {display:block;width:100%;height:210px;border:1px solid #e2e8f0;border-radius:8px;background:#fff}
+    .detalhe {color:#53637b;font-size:.85rem} .indicador {font-weight:600}
     h2 {font-size:1.1rem} footer {color:#53637b;font-size:.85rem} li {margin:4px 0}
   </style>
 </head>
@@ -37,7 +39,19 @@
         <div class="metrica"><div class="titulo">Movimento</div><div class="valor" id="mov">—</div></div>
         <div class="metrica"><div class="titulo">Cobertura FC / MOV</div><div class="valor" id="cob">—</div></div>
         <div class="metrica"><div class="titulo">Lotes recebidos</div><div class="valor" id="lotes">0</div></div>
+        <div class="metrica"><div class="titulo">Fila pendente</div><div class="valor" id="fila">0</div></div>
+        <div class="metrica"><div class="titulo">Lotes processados (FIFO)</div><div class="valor" id="processados">0</div></div>
       </div>
+    </section>
+    <section>
+      <h2>Leituras recentes · Evolução da frequência cardíaca</h2>
+      <canvas id="grafico" width="800" height="210" aria-label="Gráfico da frequência cardíaca simulada"></canvas>
+      <p class="detalhe">Linha azul: FC sintética (bpm); linha tracejada: referência de 100 bpm para entrada em atenção (somente em repouso e após avaliações consecutivas). Espaços no traçado significam sensor sem leitura válida.</p>
+      <p class="detalhe" id="persistencia">Persistência: —</p>
+      <p class="detalhe">Os eventos ao vivo chegam pelo WebSocket. O histórico sobrevive ao reinício quando o TimescaleDB estiver configurado.</p>
+      <button id="btnHistorico" type="button" style="background:#173b72;color:#fff">Consultar histórico no banco</button>
+      <p class="detalhe" id="consultaHistorico">Consulta ainda não realizada.</p>
+      <p class="detalhe" id="ultimosProcessados">Últimos lotes processados: —</p>
     </section>
     <section>
       <h2>Ciclo 2 · Ação do cuidador</h2>
@@ -49,11 +63,12 @@
       <ul id="historico"><li>Nenhuma ainda.</li></ul>
       <p id="contato">Último contato do ESP32: —</p>
     </section>
-    <footer>Atualização automática a cada 3 s por HTTP GET. Protótipo didático: não utilizar para decisões médicas.</footer>
+    <footer><span id="conexao" class="indicador">Conectando WebSocket...</span>. Atualizações por WebSocket com consulta REST de contingência. Protótipo didático: não utilizar para decisões médicas.</footer>
   </main>
   <script>
     const rotaEstado = {{ url_for('estado', codigo=paciente)|string|tojson }};
     const rotaComando = {{ url_for('criar_comando', codigo=paciente)|string|tojson }};
+    const rotaHistorico = {{ url_for('historico_temporal', codigo=paciente)|string|tojson }};
     const porId = (id) => document.getElementById(id);
     const hora = (iso) => iso ? new Date(iso).toLocaleTimeString('pt-BR') : '—';
 
@@ -63,12 +78,21 @@
       atualizar();
     });
 
-    async function atualizar() {
+    porId('btnHistorico').addEventListener('click', async () => {
       try {
-        const resposta = await fetch(rotaEstado, {cache: 'no-store'});
-        if (resposta.status === 401) { location.replace('/login'); return; }
-        if (!resposta.ok) throw new Error('HTTP ' + resposta.status);
-        const d = await resposta.json();
+        const r = await fetch(rotaHistorico + '?limite=80', {cache:'no-store'});
+        if (r.status === 401) {location.replace('/login');return;}
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        const d = await r.json();
+        // A API ja retorna em ordem cronologica (mais antiga -> mais recente).
+        const leituras = (d.leituras || []).slice();
+        desenharGrafico(leituras);
+        porId('consultaHistorico').textContent = 'Consulta: ' + d.origem +
+          ' · ' + leituras.length + ' leituras' + (d.erro ? ' · ' + d.erro : '');
+      } catch(e) { porId('consultaHistorico').textContent = 'Erro na consulta: ' + e.message; }
+    });
+
+    function renderizar(d) {
         const r = d.resumo || {};
 
         const badge = porId('estado');
@@ -80,6 +104,14 @@
         porId('cob').textContent = r.coberturaFc == null ? '—' :
           Math.round(r.coberturaFc * 100) + '% / ' + Math.round(r.coberturaMov * 100) + '%';
         porId('lotes').textContent = d.lotesRecebidos;
+        porId('fila').textContent = (d.fila && d.fila.pendentes) || 0;
+        porId('processados').textContent = (d.fila && d.fila.processados) || 0;
+        const ultimos = (d.fila && d.fila.ultimosLotesProcessados) || [];
+        porId('ultimosProcessados').textContent = 'Últimos lotes processados (FIFO): ' +
+          (ultimos.length ? ultimos.map(l => l.loteId).join(' → ') : 'nenhum');
+        porId('persistencia').textContent = 'Persistência: ' + (d.persistenciaTemporal || 'não configurada') +
+          (d.erroPersistencia ? ' · Erro: ' + d.erroPersistencia : '');
+        desenharGrafico(d.historicoLeituras || []);
 
         const c = d.comando;
         porId('btnReconhecer').disabled = d.estado !== 'ATENCAO' || (c && c.status !== 'EXECUTADO');
@@ -94,11 +126,74 @@
         }
         if (!d.historico.length) porId('historico').innerHTML = '<li>Nenhuma ainda.</li>';
         porId('contato').textContent = 'Último contato do ESP32: ' + hora(d.ultimoContatoUtc);
+    }
+
+    function desenharGrafico(leituras) {
+      const c = porId('grafico'), ctx = c.getContext('2d');
+      const w = c.width, h = c.height, left = 55, right = 15, top = 18, bottom = 30;
+      const ymin = 30, ymax = 220; // a regra valida FC na faixa de 30 a 220 bpm
+      const y = v => top + (ymax - v) * (h - top - bottom) / (ymax - ymin);
+      const x = i => left + i * (w - left - right) / Math.max(1, leituras.length - 1);
+      ctx.clearRect(0, 0, w, h);
+      ctx.font = '12px system-ui'; ctx.textBaseline = 'middle';
+      ctx.lineWidth = 1;
+      [40, 80, 120, 160, 200].forEach(v => {
+        ctx.strokeStyle = '#e2e8f0';ctx.beginPath();
+        ctx.moveTo(left,y(v));ctx.lineTo(w-right,y(v));ctx.stroke();
+        ctx.fillStyle = '#64748b';ctx.textAlign = 'right';ctx.fillText(String(v),left-8,y(v));
+      });
+      ctx.save();ctx.strokeStyle = '#dc6b38';ctx.setLineDash([6,5]);
+      ctx.beginPath();ctx.moveTo(left,y(100));ctx.lineTo(w-right,y(100));ctx.stroke();ctx.restore();
+      ctx.fillStyle = '#a54a25';ctx.textAlign = 'left';ctx.fillText('100 bpm',left+4,y(100)-11);
+      if (!leituras.length) {
+        ctx.fillStyle = '#64748b';ctx.textAlign = 'center';
+        ctx.fillText('Aguardando as primeiras leituras...',w/2,h/2);return;
+      }
+      let iniciado = false;
+      ctx.strokeStyle = '#1e4d87';ctx.lineWidth = 2.5;ctx.beginPath();
+      leituras.forEach((l,i) => {
+        const fc = l.fc;
+        if (typeof fc !== 'number' || !Number.isFinite(fc) || fc < ymin || fc > ymax) {
+          iniciado = false;return;
+        }
+        if (iniciado) ctx.lineTo(x(i),y(fc)); else ctx.moveTo(x(i),y(fc));
+        iniciado = true;
+      });
+      ctx.stroke();
+      const primeiro = leituras[0]?.recebidoEmUtc;
+      const ultimo = leituras[leituras.length-1]?.recebidoEmUtc;
+      ctx.fillStyle = '#64748b';ctx.textBaseline = 'alphabetic';
+      ctx.textAlign = 'left';ctx.fillText(primeiro ? hora(primeiro) : 'Início',left,h-7);
+      ctx.textAlign = 'right';ctx.fillText(ultimo ? hora(ultimo) : 'Atual',w-right,h-7);
+    }
+
+    async function atualizar() {
+      try {
+        const resposta = await fetch(rotaEstado, {cache: 'no-store'});
+        if (resposta.status === 401) { location.replace('/login'); return; }
+        if (!resposta.ok) throw new Error('HTTP ' + resposta.status);
+        renderizar(await resposta.json());
       } catch (erro) {
         porId('dispositivo').textContent = 'Falha ao consultar a API: ' + erro.message;
       }
     }
-    atualizar(); setInterval(atualizar, 3000);
+
+    let socket;
+    function conectarWebSocket() {
+      const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+      socket = new WebSocket(proto + '//' + location.host + '/ws/pacientes/{{ paciente }}');
+      socket.onopen = () => porId('conexao').textContent = 'WebSocket conectado';
+      socket.onmessage = e => renderizar(JSON.parse(e.data));
+      socket.onclose = e => {
+        porId('conexao').textContent = 'WebSocket desconectado (REST de contingência)';
+        if (e.code === 1008) {location.replace('/login');return;}
+        setTimeout(conectarWebSocket, 3000);
+      };
+      socket.onerror = () => socket.close();
+    }
+    atualizar(); conectarWebSocket();
+    // Verificacao periodica de contingencia, nao e o mecanismo principal.
+    setInterval(() => { if (!socket || socket.readyState !== WebSocket.OPEN) atualizar(); }, 5000);
   </script>
 </body>
 </html>

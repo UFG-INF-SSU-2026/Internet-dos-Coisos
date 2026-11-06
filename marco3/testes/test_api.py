@@ -42,6 +42,7 @@ class TestarApi(unittest.TestCase):
             'CUIDADOR_SENHA_HASH': f'scrypt${sal.hex()}${derivada.hex()}',
             'DEVICE_ID': 'esp32-borda-01',
             'PATIENT_ID': 'patient-0042',
+            'DATABASE_URL': '',  # testes locais não tocam no banco do grupo
         }
         with patch.dict(os.environ, env):
             self.client = TestClient(create_app())

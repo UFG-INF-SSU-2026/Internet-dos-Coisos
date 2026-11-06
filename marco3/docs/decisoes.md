@@ -27,9 +27,9 @@ Orientação adicional: todos do grupo devem entender a solução de ponta a pon
 | # | Decisão | Motivo |
 |---|---|---|
 | D1 | Só HTTP/REST, sem MQTT | MQTT é opcional. Uma tecnologia a menos para configurar e explicar; REST deixa explícitos os códigos 401 (não autenticado) e 403 (não autorizado). |
-| D2 | Login sem token CSRF; cookie de sessão `SameSite=Lax` | Com `Lax` o navegador não envia o cookie em POST vindo de outro site. Menos código com proteção equivalente para o protótipo. |
+| D2 | Sessão do cuidador com cookie `SameSite=Lax` e sem token CSRF dedicado | Suficiente como escolha didática para o protótipo, **não** proteção equivalente a CSRF completo em produção. |
 | D3 | Sem heartbeat separado | A consulta de comando a cada 3 s já atualiza o "último contato" do ESP32. |
-| D4 | Sem controle de ordem; só descarte de lote repetido (`loteId`) | Cada lote é independente; a repetição (resposta perdida e reenvio) é o único caso que importa. |
+| D4 | Descarte de `loteId` repetido + ordem FIFO de recebimento | Lotes duplicados recentes não são reprocessados; o consumidor processa mensagens válidas na ordem da fila em um único processo. |
 | D5 | A análise (janela, cobertura, histerese, persistência) saiu do ESP32 e foi para `api/regra.py` | Menos código em C. Em Python a regra é testada sem simulador (`test_regra.py`) e é mais fácil de explicar e alterar. A regra é a mesma do Marco 2. |
 | D6 | Um comando por vez, um tipo (`RECONHECER_ALERTA`), 3 status | Um paciente, um dispositivo, uma ação. `PENDENTE → ENTREGUE → EXECUTADO`. |
 | D7 | Regra local mínima no ESP32, só quando a API não responde por 8 s | Sem rede o paciente ainda é alertado (FC > 100 bpm em repouso), sem duplicar a análise completa. |
@@ -37,11 +37,11 @@ Orientação adicional: todos do grupo devem entender a solução de ponta a pon
 | D9 | Lote de 3 leituras a cada 3 s | Menos requisições do que uma por leitura e resposta rápida para a demo de 5 min. |
 | D10 | *Polling* de comando a cada 3 s | O ESP32 não tem endereço público para a API "empurrar" o comando; 3 s deixa o ciclo 2 visível em poucos segundos. |
 | D15 | Tempos curtos para a demo: janela de 10 leituras (FC) e 5 (movimento), 4 s mínimos em cada estado, 8 s sem lote = `DADOS_INSUFICIENTES` | A demonstração tem 5 min; cada mudança de estado aparece em ~9 s. O projeto original usava janela de 120 s. |
-| D17 | Segurança na mensagem (HMAC-SHA256 + horário) em vez de HTTPS | Testamos no Wokwi: **nenhum** HTTPS completa (túnel e Google, com e sem validar certificado: "SSL - connection indicated an EOF"), enquanto HTTP simples funciona. A assinatura garante autenticidade e integridade, e o horário (janela de 120 s) impede repetir mensagem capturada. Não dá confidencialidade: aceitável para dados simulados. Em hardware real, voltar ao HTTPS mantendo a assinatura. |
+| D17 | Comunicação HTTP assinada por HMAC-SHA256 + horário | O grupo relatou falha TLS no **sketch original**, então manteve HTTP com HMAC para dados **sintéticos**. A janela de 120 s rejeita assinaturas antigas, mas não impede todos os replays dentro da janela. **Não há confidencialidade** e a solução não serve para dados reais. |
 | D16 | Janela contada em **leituras**, não em horário de chegada; silêncio verificado à parte | Atrasos de rede no Wokwi (alguns segundos por requisição) não fazem o estado piscar; a queda real é detectada pelos 8 s sem lote. |
-| D11 | Uma chave por dispositivo, **fixa e versionada** em `produtor/config.h` | Uma chave basta (confirmado). Fixa no repositório para todos do grupo e o projeto do Wokwi usarem a mesma, sem gerar e colar a cada demonstração. A chave não trafega na rede (D17). É chave de demonstração com dados simulados: em produção ficaria fora do repositório, uma por dispositivo. A senha do cuidador continua fora do git (`api/.env`). |
+| D11 | Uma chave privada por dispositivo, gerada localmente | Consolidação da branch `marco3-enxuto`: `gerar_config.py` gera `api/.env` e `produtor/config.h` com chave consistente, ambos ignorados pelo Git. Não publicar a chave no Wokwi público. A senha do cuidador é armazenada somente como hash no `.env`. |
 | D12 | Sem fila offline no ESP32 | Lote que falha é descartado; a API percebe a falta de leituras e mostra `DADOS_INSUFICIENTES`. Preferimos mostrar a falta de dados a mostrar dados atrasados como atuais. Um broker não resolveria: com a rede do ESP32 fora, a leitura não sai do dispositivo. |
-| D13 | Dados em memória, sem banco | Um paciente e um cuidador. Reiniciar a API apaga o histórico (limitação assumida). |
+| D13 | Estado operacional, fila e comando pendente em memória | Versão original não tinha banco. **Revisto em D20:** os eventos históricos podem ser persistidos; reiniciar a API ainda reinicia a sessão, o estado corrente e a fila. |
 | D14 | Reconhecer o alerta só silencia o buzzer | O LED continua aceso e o estado não muda: o cuidador ter visto não significa que o risco passou. Só a regra encerra o alerta. |
 
 ## Quem produz e quem consome
@@ -67,4 +67,21 @@ No Marco 2 o cuidador só consumia. No Marco 3 ele também produz, e o ESP32 tam
 - Sem HTTPS (limitação do Wokwi, D17): as leituras podem ser lidas no caminho.
 - A URL do túnel gratuito muda a cada reinício do `cloudflared`.
 - Sinais simulados; sem valor clínico.
-- Sem banco, sem múltiplos pacientes, sem limite de tentativas de login.
+- TimescaleDB é necessário para comprovar persistência; sem ele, a API funciona só em memória. Não há múltiplos pacientes nem limitação de tentativas de login.
+
+
+## Revisão após feedback do professor — entrega consolidada
+
+**Estas decisões atualizam as limitações históricas D13 e a visão do Marco 3 original.**
+
+| ID | Melhoria | Decisão/justificativa |
+|---|---|---|
+| D18 | WebSocket | Push de eventos API → painel com sessão autenticada; a comunicação ESP32 → API continua HTTP/HMAC. O REST permanece para consulta e contingência. |
+| D19 | Fila FIFO | `asyncio.Queue(maxsize=128)` com consumidor único, entre recebimento HTTP e regra.py. Em memória, sem durabilidade após reiniciar. Não é fila offline no ESP32 (mantém D12). |
+| D20 | TimescaleDB | Código consolidado da branch `timescaledb`: `armazenamento.py` cria três hypertables por `ts`: `leituras`, `eventos_estado`, `comandos`. A fila e o comando **pendente** permanecem na memória, mas suas ocorrências e mudanças de status são gravadas no banco quando disponível. A extensão e as hypertables são verificáveis pelo script `verificar_banco.py`. |
+| D21 | Simulação | Cenários `0`,`1`,`2`,`3`,`4`,`a`,`f` acionados pelo Serial Monitor; representação totalmente sintética e de ensino. |
+| D22 | Verificabilidade | Endpoint `/api/saude`, testes Python e scripts para confirmar fluxo sem Wokwi e hypertable real; os dois últimos não substituem o teste integral do simulador. |
+
+**Correção de segurança de D17:** o Wokwi suporta HTTPS em geral. O projeto específico teve dificuldade no handshake TLS e, por isso, utiliza HTTP com HMAC. HMAC garante autenticidade/integridade, **não confidencialidade**. O timestamp rejeita assinaturas fora da janela de 120 segundos, mas **um atacante ainda pode repetir mensagens dentro da janela**; a deduplicação por `loteId` reduz reprocessamentos recentes de lotes. A chave deixou de ser versionada na consolidação da branch `marco3-enxuto`.
+
+**Nota sobre streaming:** o ESP32 gera leituras continuamente e envia lotes; a API mantém uma fila assíncrona e envia estados pelo WebSocket. Isto não é Kafka, RabbitMQ ou exatamente-once delivery. Um único worker FastAPI deve ser usado para preservar fila e estado.

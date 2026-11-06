@@ -1,156 +1,93 @@
-# Marco 3 — Segurança, autenticação e um novo ciclo produtor-consumidor
+# Marco 3 — Monitoramento ubíquo com processamento de eventos
 
-**Disciplina:** Software para Sistemas Ubíquos · Instituto de Informática / UFG · 2026/2  
-**Grupo:** Internet dos Coisos  
-**Cenário:** monitoramento demonstrativo de sinais vitais por *smart clothing*.
+**Universidade Federal de Goiás · INF · Software para Sistemas Ubíquos · 2026/2**
 
-> **Protótipo de graduação.** O potenciômetro simula a frequência cardíaca. Os dados **não são médicos** e o projeto não serve para diagnóstico.
+Este diretório contém o sistema de monitoramento didático com sensores sintéticos, ESP32 virtual no Wokwi, API FastAPI, fila FIFO, histórico temporal TimescaleDB, WebSocket e o ciclo inverso de comandos. Os arquivos das etapas anteriores são mantidos no repositório para preservar a evolução do projeto.
 
-## 1. Requisitos e como atendemos
+## 1. Requisitos do trabalho e da evolução solicitada
 
-| Requisito do Marco 3 | Como atendemos |
+| Aspecto | Implementação no Marco 3 |
 |---|---|
-| Evoluir a arquitetura produtor-consumidor do Marco 2 | O ESP32 agora **mede e atua**; a análise foi para a API em Python (`api/regra.py`), mas também existe localmente (modo local). A comunicação passou de MQTT para HTTP/REST. |
-| Segurança no canal | Toda mensagem do ESP32 vai **assinada** (HMAC-SHA256 com a chave do dispositivo + horário). A chave nunca trafega; mensagem alterada, forjada ou repetida é recusada. O Wokwi não completa HTTPS (decisão D17). |
-| Identificação e autenticação dos dispositivos | `deviceId` no corpo + assinatura que só quem tem a chave consegue gerar. |
-| Autorização das mensagens | A API confere os vínculos `esp32-borda-01 → patient-0042 → cuidador01` (403 se não bater). |
-| Novo ciclo produtor-consumidor | **Ciclo 2:** o cuidador (consumidor no Marco 2) produz o comando "reconhecer alerta"; o ESP32 consome, silencia o buzzer e confirma. |
-
-**Simulação no Wokwi:** <https://wokwi.com/projects/478071248037862401>. O projeto já tem a chave fixa de demonstração: para rodar, basta trocar a URL do túnel no `config.h` (seção 4).
-
-Decisões e o motivo de cada uma: [`docs/decisoes.md`](docs/decisoes.md). Roteiro da apresentação: [`docs/roteiro-apresentacao.md`](docs/roteiro-apresentacao.md).
+| Comunicação e integração | HTTP/REST do dispositivo à API, WebSocket da API ao navegador e túnel temporário Cloudflare |
+| Segurança, identidade e autorização | Assinatura HMAC-SHA256 por dispositivo, timestamp, vínculo com paciente fictício e sessão de cuidador |
+| Dois ciclos produtor-consumidor | Leituras ESP32 → API; comando cuidador → ESP32 → confirmação ACK |
+| **Fila de mensagens** | `asyncio.Queue(maxsize=128)` com um consumidor FIFO, deduplicação de lote e códigos 503 para saturação |
+| **Banco temporal** | TimescaleDB com hypertables `leituras`, `eventos_estado` e `comandos` |
+| **WebSocket** | `/ws/pacientes/{id}`, autenticado por sessão; eventos enviados após processamento e mudanças de comando |
+| **Simulação aprimorada** | Cenários de normalidade, FC elevada em repouso, movimento, sensor inválido, falha/reconexão e ciclo automático |
+| Visualização e análise | Gráfico de FC × tempo, métricas da fila, estados, histórico e consulta ao TimescaleDB |
 
 ## 2. Arquitetura
 
-```text
- CICLO 1                                              CICLO 2
- ESP32 ──POST /api/leituras (assinado)──► API         Painel ──POST /api/pacientes/{id}/comando (sessão)──► API
-   ▲                                       │ regra.py                                                        │
-   └────────── resposta: estado ───────────┤                       ESP32 ◄── GET /api/dispositivo/comando (assinado)
-                                           ▼                         │ silencia o buzzer
- Painel ◄── GET /api/pacientes/{id}/estado (sessão)                  └──► POST /api/dispositivo/comando/ack (assinado) ──► API ──► Painel
-```
+![Fluxo de dados e do comando inverso](docs/visuais/arquitetura-final.svg)
 
-O ESP32 alcança a API do PC por um túnel gratuito da Cloudflare: `ESP32 (Wokwi) ──HTTP assinado──► http://xxxx.trycloudflare.com ──► 127.0.0.1:5000`.
+**Produtor do ciclo 1:** ESP32 lê potenciômetro (FC fictícia) e MPU6050 (aceleração). Cada segundo obtém uma amostra; a cada três leituras envia um lote HTTP assinado. **Consumidor do ciclo 1:** FastAPI valida o lote, coloca-o na fila e um único consumidor aplica `Monitor` de `regra.py`.
 
-**Como a assinatura funciona:** o ESP32 calcula `HMAC-SHA256(chave, horário + método + rota + corpo)` e manda o resultado nos cabeçalhos `X-Timestamp` e `X-Assinatura`. A API, que tem a mesma chave, recalcula e compara. Sem a chave não dá para assinar; mudar um byte do corpo muda a assinatura; mensagem com mais de 120 s é recusada (não dá para repetir uma mensagem capturada).  
-Diagrama editável: [`docs/arquitetura.mmd`](docs/arquitetura.mmd).
+**Persistência:** `armazenamento.py` escreve no TimescaleDB; `temporal.py` é somente o adaptador de integração, **não outro banco**. Leituras, transições e status dos comandos são registrados separadamente.
 
-### Quem faz o quê
+**Atualização instantânea:** depois de calcular o estado, a API publica um evento para os navegadores autenticados por WebSocket. O painel faz consultas REST de contingência apenas quando o socket não está aberto.
 
-| Componente | Responsabilidade | Arquivo |
+**Produtor do ciclo 2:** o cuidador solicita reconhecer um alerta ativo. **Consumidor do ciclo 2:** o ESP32 consulta comandos a cada três segundos, silencia o buzzer, envia ACK e a API atualiza o painel e o histórico de comandos.
+
+Em falha de comunicação por oito segundos, a ESP32 entra em **modo local**, usando uma regra simples; o servidor classifica ausência de leituras como `DADOS_INSUFICIENTES`. Estado e comandos pendentes não são reconstituídos a partir do banco após reiniciar a API.
+
+## 3. Regra de contexto
+
+O servidor trabalha com janelas de **10 amostras de FC** e **5 de movimento**. Uma avaliação só é considerada suficiente com cobertura mínima de **70%** em ambas. Com FC média acima de **100 bpm em repouso**, por duas avaliações consecutivas e respeitando permanência mínima de quatro segundos, o estado entra em `ATENCAO`; a saída utiliza **92 bpm**, caracterizando histerese. Amostras inválidas ou silêncio de oito segundos conduzem a `DADOS_INSUFICIENTES`.
+
+O gráfico do painel mostra as amostras individuais e **não substitui** a decisão baseada na média móvel. [Veja os diagramas e a explicação dos gráficos](docs/DIAGRAMAS_E_GRAFICOS.md).
+
+## 4. Banco de dados temporal
+
+| Hypertable | Campos principais | Finalidade |
 |---|---|---|
-| ESP32 | lê FC e aceleração a cada 1 s; envia lote de 3 leituras a cada 3 s; liga LED/buzzer conforme o estado; busca comando a cada 3 s; modo local se a API sumir por 8 s | `produtor/sketch.ino` |
-| Regra | média das últimas 10 leituras, cobertura mínima de 70%, entra em ATENÇÃO acima de 100 bpm em repouso por 2 avaliações, sai abaixo de 92 bpm; 8 s sem lote = DADOS INSUFICIENTES | `api/regra.py` |
-| API | rotas, login, chave do dispositivo, vínculos, comando | `api/app.py` |
-| Painel | mostra estado e histórico; botão "Reconhecer alerta" | `api/templates/painel.html` |
+| `leituras` | `ts`, `patient_id`, `device_id`, `lote_id`, `fc`, `g` | Amostras para histórico e gráfico |
+| `eventos_estado` | `ts`, `estado`, `razao`, `fc_media`, `movimento`, coberturas | Evidência das transições calculadas |
+| `comandos` | `ts`, `command_id`, `tipo`, `status`, `emitido_por` | Trilha do ciclo inverso (PENDENTE, ENTREGUE, EXECUTADO) |
 
-### Rotas
+As três tabelas são convertidas em hypertables usando a extensão TimescaleDB. A persistência é opcional para operar a API localmente, mas necessária para o histórico durável. O backend não armazena uma fila offline de reenvio em caso de indisponibilidade do banco.
 
-| Rota | Quem chama | Autenticação | Autorização | Respostas |
-|---|---|---|---|---|
-| `GET/POST /login`, `POST /logout` | cuidador | usuário + senha | — | HTML / 303 / 401 |
-| `POST /api/leituras` | ESP32 | assinatura HMAC | `deviceId`↔`entityId` | 200, 400, 401, 403 |
-| `GET /api/pacientes/{id}/estado` | painel | sessão | cuidador↔paciente | 200, 401, 403 |
-| `POST /api/pacientes/{id}/comando` | painel | sessão | cuidador↔paciente | 201, 200 (repetido), 401, 403, 409 (sem alerta) |
-| `GET /api/dispositivo/comando` | ESP32 | assinatura HMAC | `deviceId`↔`entityId` | 200 (comando ou `{}`), 401, 403 |
-| `POST /api/dispositivo/comando/ack` | ESP32 | assinatura HMAC | `deviceId`↔`entityId` | 200, 401, 403, 404, 409 |
+## 5. Interface e rotas
 
-Exemplos de mensagens: [`contrato/leituras-v3.json`](contrato/leituras-v3.json) e [`contrato/comando-v1.json`](contrato/comando-v1.json). Documentação automática: `http://127.0.0.1:5000/docs`.
+| Rota | Autorização | Papel |
+|---|---|---|
+| `GET /api/saude` | Pública, sem dados de paciente | Diagnóstico técnico |
+| `POST /api/leituras` | HMAC, dispositivo/paciente | Receber lote de até 10 leituras |
+| `GET /api/pacientes/{id}/estado` | Sessão cuidador | Estado, métricas, histórico recente |
+| `GET /api/pacientes/{id}/historico` | Sessão cuidador | Leituras históricas por TimescaleDB |
+| `WS /ws/pacientes/{id}` | Sessão cuidador | Atualização contínua do painel |
+| `POST /api/pacientes/{id}/comando` | Sessão cuidador | Reconhecimento de alerta |
+| `GET /api/dispositivo/comando` | HMAC, dispositivo/paciente | Entrega de comando pendente |
+| `POST /api/dispositivo/comando/ack` | HMAC, dispositivo/paciente | Confirmação de execução |
 
-## 3. Arquivos
+As mensagens autenticadas usam o cabeçalho `X-Timestamp` (segundos Unix) e `X-Assinatura` (HMAC-SHA256 da hora, método, rota e corpo). A chave não trafega. A comunicação ESP32–API permanece HTTP, sem criptografia TLS no trecho inicial do simulador; não utilize dados reais nem divulgue a chave da simulação.
 
-```text
-marco3/
-├── produtor/  sketch.ino, diagram.json, libraries.txt, config.h (chave fixa de demonstração)
-├── api/       app.py, regra.py, gerar_config.py, requirements*.txt, .env.exemplo, templates/
-├── contrato/  leituras-v3.json, comando-v1.json
-├── docs/      decisoes.md, roteiro-apresentacao.md, arquitetura.mmd
-└── testes/    test_regra.py, test_api.py
-```
+## 6. Simulações do ESP32
 
-## 4. Como executar (Windows) — passo a passo
+| Tecla no Serial Monitor | Cenário | Resultado conceitual |
+|---|---|---|
+| `0` | Manual (potenciômetro e MPU6050) | Observa o estado conforme entradas virtuais |
+| `1` | FC normal, repouso | Evolução para NORMAL com cobertura adequada |
+| `2` | FC elevada, repouso | ATENCAO após janela e persistência |
+| `3` | FC indisponível | DADOS_INSUFICIENTES ao perder cobertura |
+| `4` | FC elevada, com movimento | Demonstra que FC alta isolada não implica alerta em repouso |
+| `a` | Ciclo automático | Normal → alerta → sem FC → recuperação |
+| `f` | Falha de comunicação | Modo local no ESP32 e ausência de dados no servidor |
 
-**Precisa de:** Python 3.10+ (`python --version`), navegador e uma conta gratuita no [Wokwi](https://wokwi.com).
-Se o terminal não reconhecer `python`, use `py`.
+A FC é gerada por potenciômetro/cenários, **não por sensor médico**. O botão de falha do circuito tem a mesma função da tecla `f`.
 
-### 4.1 Preparação (só uma vez)
+## 7. Instalação e demonstração
 
-No PowerShell, na pasta **`marco3/api`**:
+Siga **um único guia padronizado**: [GUIA_EXECUCAO_E_TESTES.md](docs/GUIA_EXECUCAO_E_TESTES.md), com instalação Windows, dependências (incluindo `websockets`), credenciais, SQL, Wokwi, cenário automático, consultas e diagnósticos. Consulte também o [roteiro de 10 minutos](docs/roteiro-apresentacao.md).
 
-```powershell
-python -m pip install -r requirements.txt
-python gerar_config.py
-winget install --id Cloudflare.cloudflared
-```
+Os arquivos `.env` e `config.h` são criados localmente por `api/gerar_config.py`, preservam a chave comum da API e ESP32 e ficam fora do GitHub. O endereço do túnel é temporário e deve ser atualizado na cópia privada do Wokwi a cada nova execução.
 
-- `gerar_config.py` cria o `api/.env` (servidor), copiando a **chave fixa do dispositivo** de `produtor/config.h` (decisão D11), e sorteia a senha do cuidador.
-- Ele mostra a senha do cuidador **uma única vez** (usuário `cuidador01`). **Anote.**
-- O `api/.env` não vai para o GitHub (tem a senha). Para gerar de novo, apague-o e rode o script outra vez.
-- Depois do `winget`, **feche e reabra** o terminal.
+## 8. Escolhas e limites de escopo
 
-Montar o projeto no Wokwi (uma vez):
+- **Sem broker externo:** fila FIFO em memória é suficiente para ilustrar o padrão produtor-consumidor, mas perde conteúdo em reinicializações.
+- **Um processo:** não executar múltiplos workers Uvicorn; estado, fila e comando são locais ao processo.
+- **Sem garantia de persistência durante falha:** gravações perdidas na indisponibilidade do banco são contabilizadas; não há retentativa durável.
+- **Sem transporte TLS no trecho Wokwi:** HMAC oferece integridade/autenticidade da mensagem, não confidencialidade.
+- **Sem finalidade médica:** dados sintéticos e identificadores fictícios.
 
-1. Em wokwi.com, **New Project → ESP32** (Arduino).
-2. Substitua o conteúdo de `sketch.ino` e `diagram.json` pelos de `marco3/produtor/`.
-3. Crie (botão **+** / *New file*) os arquivos `libraries.txt` e `config.h`, colando o conteúdo de `marco3/produtor/`. Ou simplesmente abra o projeto já pronto (link no topo).
-4. Salve o projeto.
-
-### 4.2 A cada demonstração (~2 min)
-
-| # | Onde | O que fazer | Como saber que deu certo |
-|---|---|---|---|
-| 1 | Terminal 1, pasta `marco3/api` | `python app.py` | `Uvicorn running on http://127.0.0.1:5000` |
-| 2 | Terminal 2 (qualquer pasta) | `cloudflared tunnel --url http://127.0.0.1:5000` | aparece um quadro com `https://xxxx.trycloudflare.com` — copie |
-| 3 | Wokwi, arquivo `config.h` | troque o valor de `API_BASE_URL` pela URL do passo 2, **trocando `https://` por `http://`** | — |
-| 4 | Wokwi | ▶ iniciar a simulação | serial: `WiFi ... conectado` e, a cada 3 s, `lote N: HTTP 200` |
-| 5 | Navegador no PC | `http://127.0.0.1:5000/login`, entrar com `cuidador01` + senha anotada | painel mostra `NORMAL` em ~10 s |
-
-Use `127.0.0.1`, não `localhost` (no Windows, `localhost` pode ir para IPv6). A URL do túnel **muda toda vez** que o `cloudflared` reinicia: aí basta atualizar `API_BASE_URL` no Wokwi e reiniciar a simulação.
-
-### 4.3 Se algo der errado
-
-| Sintoma | Causa provável |
-|---|---|
-| `Execute primeiro: python gerar_config.py` | falta o `api/.env`: rode o passo 4.1 |
-| Serial: `HTTP -1` | API ou túnel fechados, URL errada/antiga no `config.h`, URL com `https://` (use `http://`), ou falha simulada ligada (botão vermelho / tecla `f`) |
-| Serial: `HTTP 401` | `config.h` do Wokwi com chave diferente do `api/.env` (apague o `.env` e rode `gerar_config.py` de novo), ou serial mostrou `NTP ... sem horario` (a assinatura leva o horário) |
-| Serial: `HTTP 403` | `DEVICE_ID`/`ENTITY_ID` do sketch diferentes do `.env` |
-| Serial: `ATENCAO: cole em config.h a URL` | `API_BASE_URL` ainda é o texto de exemplo |
-| Painel fica em `SEM DADOS` | nenhum lote chegou: olhe o serial do Wokwi |
-| Esqueci a senha | apague `api/.env` e rode `gerar_config.py` de novo (a chave do ESP32 não muda) |
-
-## 5. O que observar na demonstração
-
-| Ação | Resultado esperado |
-|---|---|
-| Abrir `/painel` sem login | Redireciona para `/login` |
-| Senha errada / certa | Erro / painel liberado |
-| Consultar `/api/pacientes/patient-9999/estado` | `403` |
-| Potenciômetro acima de 100 bpm, MPU parado | Em ~10 s: painel `ATENCAO`, LED aceso, buzzer |
-| Clicar "Reconhecer alerta" | `PENDENTE → ENTREGUE → EXECUTADO`; buzzer silencia, LED continua aceso |
-| Potenciômetro abaixo de 92 bpm | Em ~10 s volta a `NORMAL`, LED apaga |
-| Potenciômetro no mínimo (abaixo de 30 bpm = leitura inválida) | Em poucos segundos `DADOS_INSUFICIENTES`, LED piscando |
-| Botão vermelho / tecla `f` (rede caiu) | Em ~10 s, painel: `DADOS_INSUFICIENTES` e "sem contato recente". ESP32: `MODO LOCAL` após 8 s; a regra mínima continua acionando LED/buzzer. Clicar de novo volta ao normal |
-| Chave errada no `config.h` | Serial: `HTTP 401` |
-
-**Testes automáticos** (sem Wokwi), na raiz do repositório:
-
-```powershell
-python -m pip install -r marco3/api/requirements-test.txt
-python -m unittest discover -s marco3/testes -v
-```
-
-`test_regra.py` testa a regra sozinha (persistência, histerese, cobertura, silêncio). `test_api.py` testa login, chave, vínculos e os dois ciclos. A integração Wokwi → túnel → API deve ser ensaiada antes da apresentação.
-
-## 6. Limitações assumidas
-
-- **Sem HTTPS:** o ESP32 simulado no Wokwi não completa nenhum handshake TLS (testado com o túnel e com o Google, com e sem validar certificado; HTTP simples funciona). Por isso as mensagens vão assinadas (HMAC): ninguém forja, altera ou repete uma mensagem, mas as leituras **podem ser lidas** no caminho (não há confidencialidade). Em uma ESP32 real, o próximo passo seria voltar ao HTTPS mantendo a assinatura.
-- O túnel gratuito não tem garantia de disponibilidade e troca de URL a cada reinício.
-- Sem fila offline: lotes enviados durante a queda são perdidos (decisão D12).
-- Dados em memória: reiniciar a API apaga o histórico.
-- Um paciente, um cuidador, um ESP32; sem limite de tentativas de login.
-
----
-
-**Entregas anteriores:** [`../atividade-01.md`](../atividade-01.md), [`../atividade-02.md`](../atividade-02.md) e [`../marco2/README.md`](../marco2/README.md).
+Arquivos complementares: [`decisoes.md`](docs/decisoes.md), [`ORIGEM_CONSOLIDACAO.md`](docs/ORIGEM_CONSOLIDACAO.md), [`arquitetura.mmd`](docs/arquitetura.mmd) e [`sql/timescaledb.sql`](api/sql/timescaledb.sql).

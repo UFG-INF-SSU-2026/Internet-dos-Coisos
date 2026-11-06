@@ -1,0 +1,24 @@
+digraph G {
+  graph [rankdir=TB,bgcolor="transparent",fontname="DejaVu Sans",nodesep=0.4,ranksep=0.5,splines=polyline,label="MARCO 3 - arquitetura do sistema ubíquo",labelloc=t,fontsize=19];
+  node [shape=box,style="rounded,filled",fontname="DejaVu Sans",fontsize=11,margin="0.16,0.1",color="#b6c9dc",fillcolor="#edf4fa",fontcolor="#21354f"];
+  edge [fontname="DejaVu Sans",fontsize=9,arrowsize=0.7,color="#60768b",fontcolor="#46596e"];
+  sensor [label="ESP32 / Wokwi\nPotenciômetro + MPU6050\nLED / buzzer"];
+  tunnel [label="Cloudflare Tunnel\nURL temporária"];
+  api [label="FastAPI\nValidação HMAC e autorização"];
+  fila [label="Fila FIFO\nasyncio.Queue (128 lotes)",fillcolor="#fff3de",color="#dca653"];
+  worker [label="Consumidor único\nMonitor / regra.py"];
+  db [label="TimescaleDB\nleituras | eventos_estado | comandos",fillcolor="#e5f3e9",color="#8dbb9b"];
+  ws [label="WebSocket autenticado\nPush dos estados",fillcolor="#ede7fb",color="#b39ed7"];
+  painel [label="Painel do cuidador\nFC × tempo, histórico e comandos"];
+  sensor -> tunnel [label="Ciclo 1: POST lote / HMAC"];
+  tunnel -> api;
+  api -> fila;
+  fila -> worker;
+  worker -> db [label="gravação / consulta"];
+  worker -> ws [label="evento"];
+  ws -> painel;
+  db -> painel [label="histórico REST"];
+  painel -> api [label="Ciclo 2: reconhecer alerta",constraint=false,color="#ad7342"];
+  api -> sensor [label="GET comando / ACK",constraint=false,color="#ad7342"];
+  {rank=same; db;ws;}
+}

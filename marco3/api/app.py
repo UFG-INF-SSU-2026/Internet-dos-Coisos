@@ -1,13 +1,15 @@
-"""Marco 3: API REST do Internet dos Coisos (protótipo acadêmico).
+"""Marco 3: API IoT do Internet dos Coisos (protótipo acadêmico).
 
-Só rotas, autenticação e autorização. A análise das leituras fica em regra.py.
-Dados em memória: reiniciar o servidor apaga tudo.
-Iniciar: python gerar_config.py (uma vez) e python app.py.
+Fluxo de leituras: ESP32 -> POST assinado -> fila FIFO -> regra.py
+ -> armazenamento TimescaleDB (quando configurado) -> WebSocket -> painel.
+Ciclo de comando: cuidador -> API -> ESP32 -> ACK -> painel.
 
-Ciclo 1: ESP32 --POST /api/leituras--> API (regra.py) --GET estado--> painel do cuidador
-Ciclo 2: painel --POST comando--> API --GET comando--> ESP32 --POST ack--> API --> painel
+Fila, comandos e estado atual estão em memória. O histórico no TimescaleDB
+é persistente quando DATABASE_URL está configurada e a conexão funciona.
+Execute um único processo/worker da API durante a demonstração.
 """
 
+import asyncio
 import hashlib
 import hmac
 import json
@@ -19,13 +21,14 @@ from datetime import datetime, timezone
 from pathlib import Path
 from urllib.parse import parse_qs
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from starlette.middleware.sessions import SessionMiddleware
 import uvicorn
 
 from regra import Monitor
+from temporal import HistoricoTemporal
 
 BASE = Path(__file__).resolve().parent
 ONLINE_S = 10          # sem contato do ESP32 por 10 s: "sem contato recente"
@@ -75,7 +78,7 @@ def create_app():
     patient_id = os.getenv('PATIENT_ID', 'patient-0042')
     cuidador = os.getenv('CUIDADOR_USUARIO', 'cuidador01')
 
-    app = FastAPI(title='Internet dos Coisos | Marco 3', version='3.1')
+    app = FastAPI(title='Internet dos Coisos | Marco 3', version='3.3')
     # Cookie assinado com APP_SECRET_KEY. SameSite=Lax: o navegador não envia o
     # cookie em POST vindo de outro site (por isso não usamos token CSRF).
     app.add_middleware(SessionMiddleware, secret_key=secret,
@@ -93,6 +96,120 @@ def create_app():
         'hora_contato': None,
         'comando': None,                     # um comando por vez (ciclo 2)
     }
+
+    # Incremento do Marco 3: fila produtor-consumidor (em memoria), historico e WebSocket.
+    # O pipeline se liga ao event loop na primeira requisicao, permitindo TestClient
+    # sem gerenciar lifespan. Em producao, o Uvicorn mantem um unico loop por worker.
+    temporal = HistoricoTemporal()
+    pipeline = {'loop': None, 'fila': None, 'task': None, 'recebidos': 0, 'processados': 0}
+    graficos = deque(maxlen=80)       # leitura recente para o painel mesmo sem banco
+    ultimos_lotes = deque(maxlen=8)   # evidencia de ordem de consumo FIFO
+    try:
+        atraso_demo_ms = max(0, min(1000, int(os.getenv('QUEUE_DEMO_DELAY_MS', '0'))))
+    except ValueError:
+        atraso_demo_ms = 0
+    conexoes = set()
+    vigilancia = {'task': None}
+
+    def resumo_estado():
+        online = dados['contato_em'] is not None and time.monotonic() - dados['contato_em'] < ONLINE_S
+        return {
+            'paciente': patient_id,
+            'dispositivo': device_id,
+            'online': online,
+            'ultimoContatoUtc': dados['hora_contato'],
+            'estado': monitor.estado or 'SEM_DADOS',
+            'resumo': monitor.resumo,
+            'historico': list(reversed(monitor.historico)),
+            'lotesRecebidos': dados['lotes'],
+            'comando': dados['comando'],
+            'fila': {
+                'pendentes': pipeline['fila'].qsize() if pipeline['fila'] else 0,
+                'enfileirados': pipeline['recebidos'],
+                'processados': pipeline['processados'],
+                'capacidade': 128,
+                'ultimosLotesProcessados': list(ultimos_lotes),
+            },
+            'historicoLeituras': list(graficos),
+            'persistenciaTemporal': ('TimescaleDB' if temporal.ativo
+                                     else 'nao_configurada' if not temporal.configurado
+                                     else 'erro'),
+            'erroPersistencia': temporal.erro,
+            'gravacoesNaoPersistidas': temporal.descartadas,
+        }
+
+    async def publicar_evento():
+        # Qualquer falha em um navegador nao derruba o processamento do sensor.
+        if not conexoes:
+            return
+        dados_json = resumo_estado()
+        desconectados = []
+        for ws in list(conexoes):
+            try:
+                await ws.send_json(dados_json)
+            except Exception:
+                desconectados.append(ws)
+        for ws in desconectados:
+            conexoes.discard(ws)
+
+    async def vigiar_conexao():
+        # Detecta silencio do dispositivo mesmo quando nao ha polling no navegador.
+        try:
+            while conexoes:
+                transicao = monitor.verificar_silencio(time.monotonic())
+                if transicao:
+                    transicao['horaUtc'] = agora_utc()
+                    if temporal.configurado:
+                        await asyncio.to_thread(temporal.gravar_transicao,
+                                                patient_id, dict(transicao))
+                    await publicar_evento()
+                await asyncio.sleep(2)
+        finally:
+            vigilancia['task'] = None
+
+    async def consumidor_de_lotes(fila):
+        # Consumidor unico: ordem FIFO. A resposta HTTP espera o processamento.
+        while True:
+            item = await fila.get()
+            lote_id, leituras, resposta_futura = item
+            try:
+                if atraso_demo_ms:
+                    await asyncio.sleep(atraso_demo_ms / 1000)
+                transicao = monitor.adicionar(leituras, time.monotonic())
+                if transicao:
+                    transicao['horaUtc'] = agora_utc()
+                for leitura in leituras:
+                    graficos.append({'recebidoEmUtc': agora_utc(),
+                                     'fc': leitura.get('fc'), 'g': leitura.get('g')})
+                pipeline['processados'] += 1
+                ultimos_lotes.append({'loteId': lote_id, 'processadoEmUtc': agora_utc()})
+                # Persistencia opcional: nenhum problema no banco impede o alerta.
+                if temporal.configurado:
+                    await asyncio.to_thread(temporal.gravar_lote, device_id, patient_id,
+                                            lote_id, leituras, monitor.estado or 'SEM_DADOS')
+                    if transicao:
+                        await asyncio.to_thread(temporal.gravar_transicao,
+                                                patient_id, dict(transicao))
+                if not resposta_futura.done():
+                    resposta_futura.set_result({'status': 'recebido', 'estado': monitor.estado})
+                await publicar_evento()
+            except Exception as exc:
+                if not resposta_futura.done():
+                    resposta_futura.set_exception(exc)
+            finally:
+                fila.task_done()
+
+    def iniciar_consumidor():
+        loop = asyncio.get_running_loop()
+        if pipeline['loop'] is not loop:
+            # TestClient pode criar um loop por requisicao. Fora dos testes, o
+            # mesmo loop e reutilizado continuamente durante a demonstracao.
+            pipeline['loop'] = loop
+            pipeline['fila'] = asyncio.Queue(maxsize=128)
+            pipeline['task'] = None
+        if pipeline['task'] is None or pipeline['task'].done():
+            pipeline['task'] = loop.create_task(consumidor_de_lotes(pipeline['fila']))
+        return pipeline['fila']
 
     # ---------------- autenticação e autorização ----------------
     def cuidador_logado(request):
@@ -129,6 +246,16 @@ def create_app():
             return valor if isinstance(valor, dict) else None
         except (UnicodeDecodeError, ValueError):
             return None
+
+    # ---------------- diagnostico tecnico (nao exibe dados do paciente) ----------------
+    @app.get('/api/saude', tags=['Diagnostico'])
+    async def saude():
+        # Util para testar localhost e o tunel sem credenciais e sem dados pessoais.
+        return {'servico': 'online', 'versao': '3.3',
+                'banco_configurado': temporal.configurado,
+                'banco_ativo': temporal.ativo,
+                'gravacoes_nao_persistidas': temporal.descartadas,
+                'fila_pendentes': pipeline['fila'].qsize() if pipeline['fila'] else 0}
 
     # ---------------- login do cuidador ----------------
     @app.get('/', include_in_schema=False)
@@ -186,12 +313,21 @@ def create_app():
         registrar_contato()
         if lote_id in dados['lotes_vistos']:     # o ESP32 reenviou o mesmo lote
             return {'status': 'duplicado', 'estado': monitor.estado}
+        fila = iniciar_consumidor()
+        try:
+            futuro = asyncio.get_running_loop().create_future()
+            fila.put_nowait((lote_id, leituras, futuro))
+        except asyncio.QueueFull:
+            return JSONResponse({'erro': 'Fila cheia, tente novamente'}, 503)
         dados['lotes_vistos'].append(lote_id)
         dados['lotes'] += 1
-        transicao = monitor.adicionar(leituras, time.monotonic())
-        if transicao:
-            transicao['horaUtc'] = agora_utc()
-        return {'status': 'recebido', 'estado': monitor.estado}
+        pipeline['recebidos'] += 1
+        # Mantem o contrato anterior: HTTP 200 ja contem o estado calculado.
+        # Limita tempo e retorna 503 de forma explicita se o consumidor travar.
+        try:
+            return await asyncio.wait_for(futuro, timeout=8)
+        except asyncio.TimeoutError:
+            return JSONResponse({'erro': 'Processamento excedeu o tempo limite; confira a fila'}, 503)
 
     @app.get('/api/pacientes/{codigo}/estado', tags=['Cuidador'])
     async def estado(request: Request, codigo: str):
@@ -202,18 +338,44 @@ def create_app():
         transicao = monitor.verificar_silencio(time.monotonic())
         if transicao:
             transicao['horaUtc'] = agora_utc()
-        online = dados['contato_em'] is not None and time.monotonic() - dados['contato_em'] < ONLINE_S
-        return {
-            'paciente': codigo,
-            'dispositivo': device_id,
-            'online': online,
-            'ultimoContatoUtc': dados['hora_contato'],
-            'estado': monitor.estado or 'SEM_DADOS',
-            'resumo': monitor.resumo,
-            'historico': list(reversed(monitor.historico)),
-            'lotesRecebidos': dados['lotes'],
-            'comando': dados['comando'],
-        }
+            if temporal.configurado:
+                await asyncio.to_thread(temporal.gravar_transicao, codigo, dict(transicao))
+            await publicar_evento()
+        return resumo_estado()
+
+    @app.get('/api/pacientes/{codigo}/historico', tags=['Cuidador'])
+    async def historico_temporal(request: Request, codigo: str, limite: int = 100):
+        if not cuidador_logado(request):
+            return JSONResponse({'erro': 'Faca login'}, 401)
+        if request.session.get('paciente') != codigo:
+            return JSONResponse({'erro': 'Sem permissao para este paciente'}, 403)
+        if temporal.configurado:
+            registros = await asyncio.to_thread(temporal.consultar, codigo, limite)
+            return {'origem': 'TimescaleDB' if temporal.ativo else 'indisponivel',
+                    'leituras': registros, 'erro': temporal.erro}
+        return {'origem': 'memoria (nao persistente)',
+                'leituras': list(graficos)[-min(500, max(1, limite)):], 'erro': None}
+
+    @app.websocket('/ws/pacientes/{codigo}')
+    async def websocket_estado(websocket: WebSocket, codigo: str):
+        sessao = websocket.scope.get('session', {})
+        if sessao.get('usuario') != cuidador or sessao.get('paciente') != codigo:
+            await websocket.close(code=1008)
+            return
+        await websocket.accept()
+        conexoes.add(websocket)
+        await websocket.send_json(resumo_estado())
+        if vigilancia['task'] is None or vigilancia['task'].done():
+            vigilancia['task'] = asyncio.create_task(vigiar_conexao())
+        try:
+            # O cliente pode enviar pings de texto; a API envia os estados
+            # proativamente quando um lote ou comando e processado.
+            while True:
+                await websocket.receive_text()
+        except WebSocketDisconnect:
+            pass
+        finally:
+            conexoes.discard(websocket)
 
     # ---------------- ciclo 2: comando do cuidador e ack do ESP32 ----------------
     @app.post('/api/pacientes/{codigo}/comando', tags=['Cuidador'])
@@ -232,6 +394,9 @@ def create_app():
             'emitidoPor': cuidador, 'status': 'PENDENTE',
             'criadoEmUtc': agora_utc(), 'confirmadoEmUtc': None,
         }
+        if temporal.configurado:
+            await asyncio.to_thread(temporal.gravar_comando, codigo, dict(dados['comando']))
+        await publicar_evento()
         return JSONResponse(dados['comando'], 201)
 
     @app.get('/api/dispositivo/comando', tags=['Dispositivo'])
@@ -244,7 +409,11 @@ def create_app():
         c = dados['comando']
         if not c or c['status'] == 'EXECUTADO':
             return {}
+        primeira_entrega = c['status'] == 'PENDENTE'
         c['status'] = 'ENTREGUE'                 # entrega de novo até chegar o ack
+        if primeira_entrega and temporal.configurado:
+            await asyncio.to_thread(temporal.gravar_comando, patient_id, dict(c))
+        await publicar_evento()
         return {'commandId': c['commandId'], 'tipo': c['tipo']}
 
     @app.post('/api/dispositivo/comando/ack', tags=['Dispositivo'])
@@ -263,6 +432,9 @@ def create_app():
         if c['status'] == 'ENTREGUE':
             c['status'] = 'EXECUTADO'
             c['confirmadoEmUtc'] = agora_utc()
+            if temporal.configurado:
+                await asyncio.to_thread(temporal.gravar_comando, patient_id, dict(c))
+            await publicar_evento()
         return {'status': c['status']}
 
     return app
