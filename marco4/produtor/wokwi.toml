@@ -1,0 +1,8 @@
+# Simulador Wokwi no VS Code: F1 > "Wokwi: Start Simulator".
+# Antes, compile com "pio run" nesta pasta (gera .pio/build/esp32/).
+[wokwi]
+version = 1
+firmware = ".pio/build/esp32/firmware.bin"
+elf = ".pio/build/esp32/firmware.elf"
+# Serial exposta em TCP: scripts podem enviar as teclas 1/2/3/4/f e ler o log.
+rfc2217ServerPort = 4000
