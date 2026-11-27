@@ -60,3 +60,9 @@ class HistoricoTemporal:
             retorno = self.backend.consultar(patient_id, limite)
             return retorno if retorno is not None else []
         return []
+
+    def restaurar_estado(self, patient_id, limite=10):
+        """Devolve snapshot persistido para reconstruir o estado apos reinicio."""
+        if self.backend:
+            return self.backend.restaurar_estado(patient_id, limite)
+        return None
