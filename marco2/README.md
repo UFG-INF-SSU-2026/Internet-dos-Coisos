@@ -30,6 +30,7 @@ marco2/
 ├── consumidor/     consumidor.py, requirements.txt
 ├── contrato/       evento-v1.json e descrição dos campos
 └── docs/           arquitetura-visual.svg, arquitetura.svg, arquitetura.mmd,
+                    fluxo-dado.svg,
                     decisoes.md, comparacao.md,
                     proposta-marco-2.pdf (slides da Aula 05 com o enunciado)
 ```
@@ -78,30 +79,7 @@ O monitor serial deve mostrar `WiFi conectado` e `mqtt: conectado`.
 
 ### Fluxo
 
-```
-PRODUTOR (ESP32)                                       BROKER            CONSUMIDOR (Python)
-─────────────────────────────────────────────────      ──────────        ───────────────────
-potenciômetro ─┐
-               ├─▶ leitura + validação (1/s)
-MPU6050 ───────┘     OK | FORA_DE_FAIXA | AUSENTE
-                         │
-                         ▼
-               janela circular (FC 20 s, MOV 10 s)
-                         │  a cada 5 s
-                         ▼
-               cobertura ≥ 70%? ──não──▶ DADOS_INSUFICIENTES
-                         │ sim
-                         ▼
-               regra + histerese + persistência
-                         │  só quando o estado MUDA
-                         ▼
-               LED / buzzer  +  evento JSON (sequence++)
-                         │
-               publish ok? ──sim───────────────▶  .../state  ──▶  valida → dedup → sequence
-                         │ não                                       → painel / alerta
-                         ▼
-               fila local (12 eventos) ──reconexão──▶ .../state
-```
+![Caminho do dado: da leitura ao alerta](docs/fluxo-dado.svg)
 
 Amostra bruta **nunca sai do ESP32**. O que atravessa a fronteira é só o evento de mudança de estado, com a média e as coberturas que justificaram a decisão. Se nada muda, nada é publicado.
 
