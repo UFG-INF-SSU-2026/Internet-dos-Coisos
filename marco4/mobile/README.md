@@ -39,4 +39,4 @@ Versões: Gradle 9.9.3 (wrapper no repositório), AGP 9.5.3 com Kotlin embutido,
 
 - O app faz polling a cada 2 s (não usa o WebSocket do painel).
 - O acelerômetro continua ligado enquanto o app está aberto, inclusive em segundo plano. Em produção, isso iria para um serviço em primeiro plano.
-- Não há testes instrumentados; os comportamentos de API do app estão cobertos em `marco4/testes/test_app_mobile.py`.
+- Testes de unidade na JVM: `.\gradlew.bat testDebugUnitTest` (15 testes em `app/src/test`, sobre `Logica.kt`). Não há testes instrumentados de interface; os comportamentos de API do app estão cobertos em `marco4/testes/test_app_mobile.py`.

@@ -1,0 +1,17 @@
+# ./gradlew testDebugUnitTest --rerun-tasks (marco4/mobile), 27/11/2026 15:50, JDK do Android Studio
+CorpoMovimentoTest > segue_o_contrato_app_v1 PASSED
+CorpoMovimentoTest > limita_a_intensidade_entre_0_e_8 PASSED
+IntensidadeTest > parado_inclinado_tambem_e_zero PASSED
+IntensidadeTest > sacudida_do_ensaio_passa_do_limiar_de_repouso PASSED
+IntensidadeTest > tremor_pequeno_fica_abaixo_do_limiar PASSED
+IntensidadeTest > parado_de_pe_e_zero PASSED
+IntensidadeTest > queda_livre_e_um_g PASSED
+ResumoTest > campos_nulos_viram_traco_e_nao_o_texto_null PASSED
+ResumoTest > resposta_vazia_nao_quebra PASSED
+ResumoTest > estado_completo_em_alerta PASSED
+ResumoTest > contexto_do_celular_desativa_o_botao PASSED
+UrlTest > aceita_https_e_tira_barra_e_espacos PASSED
+UrlTest > recusa_vazio_e_so_o_esquema PASSED
+UrlTest > recusa_http PASSED
+UrlTest > recusa_sem_esquema PASSED
+BUILD SUCCESSFUL in 12s

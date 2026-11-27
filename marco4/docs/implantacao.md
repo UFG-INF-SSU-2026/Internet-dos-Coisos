@@ -76,6 +76,11 @@ Execute nesta ordem. Os passos 2 e 3 ficam com terminais abertos.
 
 A URL do túnel muda a cada vez que o `cloudflared` reinicia. Quando mudar, atualize o `config.h` do Wokwi e a URL na tela de login do app.
 
+**Wokwi no VS Code (alternativa ao wokwi.com, exige a licença da extensão):**
+1. Com o PlatformIO instalado, rode `pio run` em `marco4/produtor`. O firmware sai em `.pio/build/esp32/`.
+2. Abra a pasta `marco4/produtor` no VS Code e escolha **F1 → Wokwi: Start Simulator**. O `wokwi.toml` aponta para o firmware e usa o mesmo `diagram.json`.
+3. A serial também fica disponível em `rfc2217://localhost:4000`, para scripts enviarem as teclas e lerem o log.
+
 Sem o Wokwi, o script `.\.venv\Scripts\python.exe marco4\scripts\simular_sem_wokwi.py` faz o papel do ESP32 e assina os lotes com a chave local.
 
 ## 5. Configurar o armazenamento

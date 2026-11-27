@@ -88,7 +88,8 @@ Código em `marco4/mobile` (Kotlin + Compose). O passo a passo para compilar est
 - [x] Limitações e trabalhos futuros
 - [x] PDF em `marco4/docs/artigo.pdf`
 - [ ] Revisão do grupo (texto, autores, eventuais e-mails)
-- [ ] Versão de 11/12: incluir os resultados do ensaio completo com o APK
+- [x] Ensaio do app no emulador no artigo (Seção 6.6, figura com 4 telas; artigo com 15 páginas, no limite)
+- [ ] Versão de 11/12: incluir os resultados do ensaio completo com o APK (celular real, Wokwi e banco), sem passar de 15 páginas
 
 ## Fim do dia: todos juntos
 
@@ -104,5 +105,6 @@ Vão para o README com impacto e justificativa, como o PDF permite.
 
 - [ ] TLS no ESP32
 - [ ] Teste de integração com TimescaleDB real no CI
-- [ ] Testes instrumentados do app
+- [x] Testes de unidade do app na JVM (15, no CI com o APK como artefato)
+- [ ] Testes instrumentados de interface do app
 - [ ] Recuperar o estado e o comando pendente quando a API reinicia

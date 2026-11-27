@@ -28,6 +28,27 @@ A suíte não precisa de Wokwi, banco ou rede. A API roda dentro do processo com
 | `test_consolidacao.py` | `app.py` + `temporal.py` + `gerar_config.py` | Gravação de leituras, transições e comandos; consulta do histórico; segredos fora do Git | 4 |
 | `test_app_mobile.py` | `app.py` (rotas do app) + `regra.py` (contexto) | Token do app, segundo produtor, validade e atraso, mudança de contexto, ciclo 2 pelo app | 15 |
 
+### Testes de unidade do app Android
+
+Em `marco4/mobile`, rodam na JVM, sem emulador:
+
+```powershell
+.\gradlew.bat testDebugUnitTest
+```
+
+A lógica que não depende do Android fica em [`Logica.kt`](../mobile/app/src/main/java/br/ufg/coisos/Logica.kt). O `Movimento`, a `Api` e a tela usam essas funções, então o teste exercita o mesmo código do APK.
+
+| Classe de teste | Função exercitada | O que comprova | Testes |
+|---|---|---|---|
+| `IntensidadeTest` | `intensidadeMovimento` | Celular parado dá 0 em qualquer posição; a sacudida do ensaio (0,83 g) passa de 0,15 g; tremor pequeno fica abaixo | 5 |
+| `UrlTest` | `urlDaApi` | Só aceita `https://`; recusa `http://`, vazio e URL sem esquema | 4 |
+| `CorpoMovimentoTest` | `corpoMovimento` | Corpo igual ao contrato `app-v1`; intensidade limitada a 0–8 | 2 |
+| `ResumoTest` | `Resumo.de` | Leitura do `/estado`; campos nulos viram "—" (regressão do ensaio 2.0); botão só ativo em `ATENCAO` | 4 |
+
+**Resultado registrado:** 15 testes aprovados.
+- Execução local: [`evidencias/testes-app.txt`](evidencias/testes-app.txt).
+- CI: job `app-android` do mesmo workflow. Roda os testes, gera o APK e guarda os artefatos `relatorio-junit-app` e `coisos-cuidador-debug-apk`.
+
 ### Entradas, resultado esperado e resultado observado
 
 | Requisito | Entrada e ação | Resultado esperado e observado | Teste |
@@ -76,19 +97,19 @@ Este ensaio **não substitui** os itens 2.1 a 2.4 com celular real, Wokwi e Time
 | Senha errada pelo túnel HTTPS | "Usuário ou senha incorretos" | `03-senha-errada.png` |
 | URL com `http://` | Recusada antes de qualquer requisição: "Use a URL https:// do túnel" | `11-http-recusado.png` |
 | Login correto, sem ESP32 | `SEM_DADOS`, "ESP32 sem contato recente", botão desativado | `04-sem-dados.png` |
-| FC 120 em repouso | `ATENCAO` cerca de 15 s depois do início dos lotes; "ESP32 online"; botão ativo | `05-atencao.png` |
-| Tocar **Reconhecer alerta** | No lote seguinte, o ESP32 simulado recebeu `cmd-735a593a` e respondeu ACK; o app mostrou `EXECUTADO` | `06-reconhecido.png`, linha 15:19:45 do log |
+| FC 120 em repouso | `ATENCAO` 12 s depois do primeiro lote (16:00:17 → 16:00:29 no log); "ESP32 online"; botão ativo | `05-atencao.png` |
+| Tocar **Reconhecer alerta** | No lote seguinte, o ESP32 simulado recebeu `cmd-f5137cd9` e respondeu ACK; o app mostrou `EXECUTADO` no cartão e "Reconhecimento enviado" abaixo do botão | `06-reconhecido.png`, linha 16:00:38 do log |
 | Balançar o celular (0,83 g) | `NORMAL`, `Movimento: ACTIVE (fonte: celular)`, botão desativado; no log, a passagem de `ATENCAO` para `NORMAL` acontece entre dois lotes (3 s) | `07-contexto-movimento.png` |
 | Parar de balançar | `ATENCAO` de volta com `fonte: esp32` | `08-alerta-volta.png` |
 | Wi-Fi e dados desligados no emulador | "Erro de rede … Mostrando o último estado recebido"; envio do acelerômetro falha; nenhum travamento | `09-sem-rede.png` |
 | Rede religada | Atualização volta sozinha, sem novo login | `10-rede-voltou.png` |
-| ESP32 simulado encerrado | `DADOS_INSUFICIENTES` e "ESP32 sem contato recente"; campos vazios aparecem como "—" | `12-apos-correcao.png` |
+| ESP32 simulado encerrado | `DADOS_INSUFICIENTES` e "ESP32 sem contato recente"; botão desativado | `12-sem-esp32.png` |
 
 **Defeitos encontrados e corrigidos no app:**
 - `optString` do `org.json` devolvia o texto `"null"` para campos JSON nulos, e a tela mostrava "Último contato: null" e "enviado (null)". Uma função `texto()` passou a trocar o nulo por "—".
 - A linha abaixo do botão mostrava "Comando … PENDENTE" para sempre, enquanto o cartão já dizia `EXECUTADO`. Agora ela mostra "Reconhecimento enviado (…). Acompanhe o status no cartão", e o status real fica só no cartão.
 
-Os prints 01 a 11 são da versão anterior à correção, e o 12 é da versão corrigida. O APK em `apk/` é o corrigido.
+Os prints foram refeitos com o APK corrigido, o mesmo que está em `apk/`. O defeito do "null" ficou coberto pelo teste `campos_nulos_viram_traco_e_nao_o_texto_null`.
 
 ### 2.1 Fluxo e contexto
 
@@ -140,7 +161,7 @@ Os prints 01 a 11 são da versão anterior à correção, e o 12 é da versão c
 | Item | Situação | Impacto |
 |---|---|---|
 | TimescaleDB real no CI | Coberto com banco simulado; o banco real só no ensaio (2.2) | Um erro de SQL só aparece no ensaio |
-| Testes instrumentados do app | Não há; a interface é verificada no ensaio (2.1, 2.3, 2.4) | Regressões de tela dependem de teste manual |
+| Testes instrumentados do app | A lógica do app tem 15 testes de unidade; a interface (Compose) só é verificada no ensaio (2.0, 2.1, 2.3, 2.4) | Regressões de layout dependem de teste manual |
 | TLS no ESP32 | Não implementado (D17) | Leituras sintéticas podem ser lidas no caminho |
 | Recuperar o estado e o comando pendente depois de reiniciar a API | Não implementado | Depois do reinício, o estado recomeça vazio até chegarem novos lotes |
 

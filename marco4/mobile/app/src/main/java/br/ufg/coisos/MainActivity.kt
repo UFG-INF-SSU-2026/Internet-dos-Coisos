@@ -47,37 +47,6 @@ import org.json.JSONObject
 
 private const val INTERVALO_MS = 2_000L   // estado e movimento a cada 2 s
 
-/** optString devolve o texto "null" para JSON null; aqui vira o valor padrão. */
-private fun JSONObject.texto(chave: String, padrao: String = "—"): String =
-    if (isNull(chave)) padrao else optString(chave, padrao)
-
-/** O que a tela de estado mostra, extraído da resposta de /estado. */
-data class Resumo(
-    val estado: String,
-    val fcMedia: String,
-    val movimento: String,
-    val fonteMovimento: String,
-    val online: Boolean,
-    val ultimoContato: String,
-    val comando: String?,
-) {
-    companion object {
-        fun de(j: JSONObject): Resumo {
-            val r = j.optJSONObject("resumo") ?: JSONObject()
-            val c = j.optJSONObject("comando")
-            return Resumo(
-                estado = j.texto("estado", "SEM_DADOS"),
-                fcMedia = if (r.isNull("fcMedia")) "—" else "${r.optDouble("fcMedia")} bpm",
-                movimento = r.texto("movimento"),
-                fonteMovimento = r.texto("fonteMovimento"),
-                online = j.optBoolean("online"),
-                ultimoContato = j.texto("ultimoContatoUtc"),
-                comando = c?.let { "${it.optString("commandId")}: ${it.optString("status")}" },
-            )
-        }
-    }
-}
-
 class CuidadorViewModel(app: Application) : AndroidViewModel(app) {
     var api: Api? by mutableStateOf(null); private set
     var entrando by mutableStateOf(false); private set
@@ -249,7 +218,7 @@ fun TelaEstado(vm: CuidadorViewModel) {
             Text("Erro de rede: ${vm.erroRede}. Mostrando o último estado recebido.",
                 color = MaterialTheme.colorScheme.error)
         }
-        Button(onClick = vm::reconhecerAlerta, enabled = r?.estado == "ATENCAO",
+        Button(onClick = vm::reconhecerAlerta, enabled = r?.podeReconhecer == true,
             modifier = Modifier.fillMaxWidth()) { Text("Reconhecer alerta") }
         vm.aviso?.let { Text(it) }
         Text("Acelerômetro: ${vm.envioMovimento}", style = MaterialTheme.typography.bodySmall)

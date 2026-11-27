@@ -18,11 +18,7 @@ class ErroApi(val codigo: Int, mensagem: String) : IOException(mensagem)
  * o token vem do login e fica só em memória.
  */
 class Api(baseUrl: String) {
-    private val base = baseUrl.trim().trimEnd('/')
-
-    init {
-        require(base.startsWith("https://")) { "Use a URL https:// do túnel" }
-    }
+    private val base = urlDaApi(baseUrl)
 
     var token: String? = null
         private set
@@ -42,10 +38,7 @@ class Api(baseUrl: String) {
 
     /** intensidade = |módulo da aceleração / 9,81 - 1|, em g; capturadoEmMs = hora da medida. */
     suspend fun enviarMovimento(intensidade: Double, capturadoEmMs: Long): JSONObject =
-        chamar("POST", "/api/app/leituras", JSONObject()
-            .put("entityId", paciente)
-            .put("intensidade", intensidade.coerceIn(0.0, 8.0))
-            .put("capturadoEmMs", capturadoEmMs))
+        chamar("POST", "/api/app/leituras", corpoMovimento(paciente, intensidade, capturadoEmMs))
 
     private suspend fun chamar(
         metodo: String, rota: String, corpo: JSONObject? = null, autenticar: Boolean = true,

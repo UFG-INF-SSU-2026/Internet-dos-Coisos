@@ -381,11 +381,12 @@ A avaliação responde a quatro perguntas, alinhadas às verificações pedidas 
   \item[Q4 -- Falha e recuperação] O sistema reconhece a falta de dados e volta ao normal quando eles retornam?
 \end{description}
 
-Foram usados três instrumentos.
+Foram usados quatro instrumentos.
 
 \textbf{Testes automatizados.}
 São 44 testes em Python (\texttt{unittest}, executados com \texttt{pytest}) que exercitam a regra pura e a API completa dentro do processo, com credenciais geradas por teste, relógio monotônico controlado e o banco substituído por um objeto simulado.
-A integração contínua (GitHub Actions) executa a suíte a cada envio à \texttt{main}, com Python 3.10 e 3.12, e guarda o relatório JUnit como evidência.
+No app, outros 15 testes de unidade em Kotlin (JUnit, executados na JVM, sem emulador) cobrem a lógica que não depende do Android: a intensidade do movimento, a exigência de HTTPS, o corpo da leitura e a interpretação da resposta de estado.
+A integração contínua (GitHub Actions) executa as duas suítes a cada envio à \texttt{main}, com Python 3.10 e 3.12 para a API, gera o APK e guarda os relatórios JUnit como evidência.
 
 \textbf{Medições reprodutíveis.}
 O script \texttt{avaliar.py} mede quatro aspectos:
@@ -397,6 +398,11 @@ O script \texttt{avaliar.py} mede quatro aspectos:
 \end{enumerate}
 O ambiente de medição foi um notebook com Windows 11 e Python 3.14.
 
+\textbf{Ensaio do aplicativo no emulador.}
+O APK foi instalado no emulador do Android Studio (API 37) e conectado à API pelo túnel HTTPS real.
+Um script fez o papel do ESP32, enviando lotes assinados com FC de 120\,bpm a cada 3\,s, buscando o comando e devolvendo o ACK.
+O movimento foi injetado no acelerômetro do emulador, e a rede, desligada e religada pelo próprio sistema.
+
 \textbf{Ensaio com o sistema completo.}
 O ensaio usa o TimescaleDB na nuvem, o túnel, o Wokwi e o APK instalado em um celular.
 Seu roteiro, com entrada, resultado esperado e campo para o resultado observado, está no documento de verificação do repositório.
@@ -407,7 +413,7 @@ Ele cobre o que os testes não alcançam: a interface do app, o certificado real
 
 \subsection{Testes automatizados}
 
-Os 44 testes passaram localmente e no CI.
+Os 44 testes da API e os 15 do app passaram localmente e no CI.
 A Tabela~\ref{tab:testes} relaciona os módulos de teste às perguntas de avaliação.
 
 \begin{table}[ht]
@@ -422,6 +428,7 @@ A Tabela~\ref{tab:testes} relaciona os módulos de teste às perguntas de avalia
 \texttt{test\_melhorias.py} & 6 & Q1: ordem FIFO e contadores; WebSocket só com sessão; diagnóstico sem dados pessoais \\
 \texttt{test\_consolidacao.py} & 4 & Q2: gravação de leituras, transições e dos três status de comando; consulta ao histórico; segredos gerados fora do Git \\
 \texttt{test\_app\_mobile.py} & 15 & Q1, Q3, Q4: token inválido, forjado ou expirado (401); outro paciente (403); atraso (422); supressão e encerramento por contexto; expiração; regressões da Seção 6.3 \\
+\texttt{LogicaTest.kt} (app) & 15 & Q1, Q3: intensidade do acelerômetro; recusa de URL sem HTTPS; corpo conforme o contrato; campos nulos e botão só em \texttt{ATENCAO} \\
 \bottomrule
 \end{tabularx}
 \end{table}
@@ -515,12 +522,35 @@ Nos testes de segurança, todas as identidades inválidas recebem 401 e todas as
 Nos testes de falha, o silêncio do ESP32 leva a \texttt{DADOS\_INSUFICIENTES}, e o celular não tira o paciente desse estado.
 A recuperação com o retorno das leituras e o comportamento do app sem rede são verificados no ensaio.
 
+\subsection{Ensaio do aplicativo}
+
+A Figura~\ref{fig:app} mostra quatro momentos do ensaio no emulador.
+Com a FC em 120\,bpm e o ESP32 em repouso, o estado passou a \texttt{ATENCAO} 12\,s depois do primeiro lote, como esperado pela janela, pela persistência e pelo tempo mínimo da regra.
+O reconhecimento feito no app chegou ao ESP32 simulado no lote seguinte, que devolveu o ACK, e o cartão mostrou \texttt{EXECUTADO}.
+Com o acelerômetro marcando 0,83\,$g$, o estado passou a \texttt{NORMAL}, com o movimento vindo do celular, entre dois lotes; parado o movimento, o alerta voltou.
+Sem rede, o app manteve o último estado e indicou a falha; com a rede de volta, retomou as consultas sem novo login.
+O app também recusou a URL com \texttt{http://} e mostrou a mensagem de senha incorreta para o 401.
+
+\begin{figure}[ht]
+\centering
+\newcommand{\tela}[2]{\begin{minipage}[t]{0.235\textwidth}\centering
+  \includegraphics[width=\linewidth]{fig/app-#1.png}\\[2pt]{\footnotesize #2}\end{minipage}}
+\tela{05-atencao}{(a) FC alta em repouso}\hfill
+\tela{06-reconhecido}{(b) alerta reconhecido}\hfill
+\tela{07-contexto-movimento}{(c) celular em movimento}\hfill
+\tela{09-sem-rede}{(d) sem rede}
+\caption{Tela de estado do app no ensaio no emulador. Em (c), o movimento do celular encerra o alerta mesmo com a FC em 120\,bpm.}\label{fig:app}
+\end{figure}
+
+O ensaio revelou um defeito de apresentação que os testes da API não alcançavam: a biblioteca \texttt{org.json} devolve o texto \texttt{"null"} para campos nulos, e a tela exibia ``Último contato: null''.
+A correção passou a ser coberta por um teste de unidade do app.
+
 \subsection{Limitações}
 
 \begin{itemize}
   \item \textbf{Canal do dispositivo.} O trecho entre o ESP32 e o túnel não tem sigilo, e a janela de 120\,s admite repetição. Com dados reais, isso exigiria TLS no dispositivo.
   \item \textbf{Volatilidade.} Fila, estado corrente e comando pendente ficam em memória. Depois de reiniciar a API, o estado recomeça vazio, embora o histórico esteja no banco.
-  \item \textbf{Validação de campo.} Os números desta seção foram medidos sem rede. Os resultados do ensaio completo, com o APK no celular, entram na versão final deste relatório.
+  \item \textbf{Validação de campo.} As medições de latência e de tempo foram feitas sem rede, e o ensaio do app usou o emulador, com o ESP32 simulado por script e sem banco. Os resultados com o celular real, o Wokwi e o TimescaleDB entram na versão final deste relatório.
   \item \textbf{Papel do celular.} Na demonstração, o mesmo celular é o app do cuidador e o sensor do paciente. Num cenário real, o sensor ficaria com o paciente, por exemplo em um relógio.
   \item \textbf{Energia.} O app mantém o acelerômetro ativo e faz duas requisições a cada 2\,s enquanto está aberto. O consumo não foi medido.
   \item \textbf{Validade clínica.} Os sinais são sintéticos e os limiares, de demonstração. Nenhuma conclusão clínica pode ser tirada.
