@@ -17,10 +17,15 @@ O contrato com a API está em [`../contrato/app-v1.json`](../contrato/app-v1.jso
 
 ## Como compilar e gerar o APK
 
-1. Android Studio (Ladybug ou mais novo) → **Open** → pasta `marco4/mobile`.
-   O repositório não traz o Gradle wrapper; se o Studio pedir, aceite criá-lo (ou rode `gradle wrapper` com Gradle 8.9+).
-2. Espere o *Gradle sync*. Se o Studio sugerir atualizar o AGP, o Kotlin ou o Compose BOM, pode aceitar.
-3. **Build → Build App Bundle(s) / APK(s) → Build APK(s)**.
+Versões: Gradle 9.9.3 (wrapper no repositório), AGP 9.5.3 com Kotlin embutido, plugin Compose 2.4.21, Compose BOM 2026.09.00, `compileSdk`/`targetSdk` 37 (SDK Platform 37.0), `minSdk` 26.
+
+1. Android Studio → **Open** → pasta `marco4/mobile`. O Studio cria o `local.properties` com o caminho do SDK.
+2. Espere o *Gradle sync*. Não atualize o Compose BOM para 2026.11.x sem instalar a SDK Platform 37.1 ou mais nova (o Compose 1.13 exige).
+3. **Build → Build App Bundle(s) / APK(s) → Build APK(s)**, ou pela linha de comando, em `marco4/mobile`:
+   ```powershell
+   $env:JAVA_HOME = 'C:\Program Files\Android\Android Studio\jbr'
+   .\gradlew.bat assembleDebug
+   ```
 4. Copie `app/build/outputs/apk/debug/app-debug.apk` para `marco4/apk/coisos-cuidador.apk` e faça commit.
 
 ## Como usar na demonstração

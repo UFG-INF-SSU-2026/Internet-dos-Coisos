@@ -18,8 +18,8 @@ Os comandos são para **PowerShell, na raiz do repositório**. O [guia detalhado
 | PostgreSQL + TimescaleDB | Tiger Cloud (serviço gerenciado) com a extensão `timescaledb` | Qualquer PostgreSQL com TimescaleDB serve |
 | cloudflared | 2026.10.1 | Túnel rápido `trycloudflare.com`, com HTTPS válido |
 | ESP32 | Wokwi, ESP32 DevKit + MPU6050 | Bibliotecas em `marco4/produtor/libraries.txt` |
-| Android Studio | Ladybug (2024.2) ou mais novo, JDK 17 embutido | AGP 8.7.3, Kotlin 2.0.21, Compose BOM 2024.12.01 |
-| Android (celular) | Android 8.0 ou mais novo (minSdk 26, targetSdk 35) | Precisa de acelerômetro e acesso à internet |
+| Android Studio | JDK embutido (`jbr`), SDK Platform 37 e build-tools 36 | Gradle 9.9.3 (wrapper), AGP 9.5.3, plugin Compose 2.4.21, Compose BOM 2026.09.00 |
+| Android (celular) | Android 8.0 ou mais novo (minSdk 26, targetSdk 37) | Precisa de acelerômetro e acesso à internet |
 
 ## 2. Preparar o ambiente Python
 
