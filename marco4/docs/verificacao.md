@@ -111,6 +111,33 @@ Este ensaio **não substitui** os itens 2.1 a 2.4 com celular real, Wokwi e Time
 
 Os prints foram refeitos com o APK corrigido, o mesmo que está em `apk/`. O defeito do "null" ficou coberto pelo teste `campos_nulos_viram_traco_e_nao_o_texto_null`.
 
+### 2.0b Ensaio com o ESP32 no Wokwi do VS Code (27/11/2026)
+
+O ESP32 simulado no Wokwi do VS Code usou o mesmo `sketch.ino` e o mesmo `diagram.json`, compilados com PlatformIO.
+- **Caminho de rede:** o ESP32 falou com a API pelo gateway local (`host.wokwi.internal`, D33), e o app falou com a API pelo túnel HTTPS.
+- **Controle:** as teclas foram enviadas pela serial RFC2217 (porta 4000).
+- **API:** ensaio sem banco, com a regra de silêncio adaptativo (D32).
+- **Registros:** log da serial em [`evidencias/ensaio-wokwi-serial.txt`](evidencias/ensaio-wokwi-serial.txt) e prints em [`evidencias/app/wokwi/`](evidencias/app/wokwi/).
+
+**Primeira tentativa, que motivou D32 e D33:**
+- Pelo túnel, todo lote recebeu `HTTP 301`, porque a Cloudflare passou a redirecionar `http://` para HTTPS.
+- Pelo gateway local, os lotes chegaram, mas a simulação rodava a ~40% da velocidade real: lotes de 3 s chegavam a cada 7–10 s de relógio. Com o silêncio fixo de 8 s, o estado alternava `ATENCAO`/`NORMAL`/`DADOS_INSUFICIENTES`.
+
+**Segunda tentativa, com as correções:**
+
+| Passo (hora) | Observado | Evidência |
+|---|---|---|
+| API reiniciada com o app aberto | O token antigo deixou de valer: o app voltou ao login com "Sessão expirou, entre de novo" | `w0-sessao-expirou.png` |
+| Tecla `1` (16:51:19) | `NORMAL` (`condicao_cessou`) | `x1-normal.png` |
+| Tecla `2` (16:51:54) | `ATENCAO` às 16:52:17, estável durante o alerta: nenhuma alternância por silêncio | `x2-atencao.png` |
+| **Reconhecer alerta** no app | O ESP32 do Wokwi recebeu `cmd-3433f8fc` às 16:52:49, silenciou o buzzer e respondeu ACK (HTTP 200); o comando ficou `EXECUTADO` com `canal = app` | `x3-reconhecido.png`, log 16:52:49 |
+| Acelerômetro do emulador em 0,83 g (16:53:02) | `NORMAL` às 16:53:09 com `razao = movimento_no_celular` e `fonte: celular` | `x4-contexto.png` |
+| Movimento parado (16:53:15) | `ATENCAO` de novo às 16:53:28, com `fonte: esp32` | `x5-alerta-volta.png` |
+| Tecla `f`, queda de rede do ESP32 (16:53:49) | Lotes com `HTTP -1`; o ESP32 entrou em **MODO LOCAL** às 16:54:15 com o alerta local (FC 135 em repouso); o app mostrou `DADOS_INSUFICIENTES` e "ESP32 sem contato recente" | `x6-esp32-sem-rede.png`, log 16:54:15 |
+| Tecla `f` de novo (16:54:34) | Às 16:54:37: "API respondeu: estado volta a vir da API", lote com HTTP 200; `ATENCAO` às 16:54:45 | `x7-recuperado.png` |
+
+Neste ensaio não foram verificados: o TimescaleDB (2.2), o certificado no navegador (2.3) e o celular físico.
+
 ### 2.1 Fluxo e contexto
 
 | Passo | Resultado esperado | Registro |
