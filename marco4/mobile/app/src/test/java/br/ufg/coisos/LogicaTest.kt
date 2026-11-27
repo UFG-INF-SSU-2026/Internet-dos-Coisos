@@ -114,3 +114,41 @@ class ResumoTest {
         assertFalse(r.podeReconhecer)
     }
 }
+
+class ApresentacaoTest {
+    @Test fun cada_estado_tem_titulo_e_tom() {
+        assertEquals(Aparencia("Tudo bem", "Frequência cardíaca dentro do esperado", Tom.BOM),
+            aparenciaDoEstado("NORMAL"))
+        assertEquals(Tom.ALERTA, aparenciaDoEstado("ATENCAO").tom)
+        assertEquals("Atenção", aparenciaDoEstado("ATENCAO").titulo)
+        assertEquals(Tom.NEUTRO, aparenciaDoEstado("DADOS_INSUFICIENTES").tom)
+        assertEquals("Aguardando o dispositivo", aparenciaDoEstado("SEM_DADOS").titulo)
+        assertEquals("Aguardando o dispositivo", aparenciaDoEstado("qualquer coisa").titulo)
+    }
+
+    @Test fun movimento_em_portugues_com_a_fonte() {
+        assertEquals("Em repouso", textoMovimento("REST", "esp32"))
+        assertEquals("Em movimento (celular)", textoMovimento("ACTIVE", "celular"))
+        assertEquals("Em movimento", textoMovimento("ACTIVE", "esp32"))
+        assertEquals("—", textoMovimento("—", "—"))
+        assertEquals("Leitura inválida", textoMovimento("INVALIDO", "esp32"))
+    }
+
+    @Test fun status_do_comando_explica_o_ciclo_2() {
+        assertEquals("Enviado, aguardando o dispositivo", textoComando("PENDENTE"))
+        assertEquals("Entregue ao dispositivo", textoComando("ENTREGUE"))
+        assertEquals("Alarme silenciado no dispositivo", textoComando("EXECUTADO"))
+        assertNull(textoComando(null))
+    }
+
+    @Test fun fc_arredondada_e_hora_local() {
+        val r = Resumo.de(JSONObject("""
+            {"estado":"ATENCAO","ultimoContatoUtc":"2026-11-27T18:19:27.5+00:00",
+             "resumo":{"fcMedia":119.6},"comando":{"commandId":"c","status":"ENTREGUE"}}"""))
+        assertEquals("120", r.fcBpm)
+        assertEquals("ENTREGUE", r.statusComando)
+        assertEquals("15:19:27", horaLocal(r.ultimoContato, java.time.ZoneOffset.ofHours(-3)))
+        assertEquals("—", horaLocal("—"))
+        assertEquals("—", Resumo.de(JSONObject("{}")).fcBpm)
+    }
+}

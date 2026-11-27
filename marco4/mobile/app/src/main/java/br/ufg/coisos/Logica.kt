@@ -1,7 +1,11 @@
 package br.ufg.coisos
 
 import org.json.JSONObject
+import java.time.OffsetDateTime
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 import kotlin.math.abs
+import kotlin.math.roundToInt
 import kotlin.math.sqrt
 
 /*
@@ -48,6 +52,8 @@ data class Resumo(
     val online: Boolean,
     val ultimoContato: String,
     val comando: String?,
+    val fcBpm: String = "—",
+    val statusComando: String? = null,
 ) {
     /** O botão "Reconhecer alerta" só faz sentido com alerta ativo. */
     val podeReconhecer: Boolean get() = estado == "ATENCAO"
@@ -64,7 +70,43 @@ data class Resumo(
                 online = j.optBoolean("online"),
                 ultimoContato = j.texto("ultimoContatoUtc"),
                 comando = c?.let { "${it.texto("commandId")}: ${it.texto("status")}" },
+                fcBpm = if (r.isNull("fcMedia") || !r.has("fcMedia")) "—"
+                        else r.optDouble("fcMedia").roundToInt().toString(),
+                statusComando = c?.let { if (it.isNull("status")) null else it.optString("status") },
             )
         }
     }
 }
+
+// --- Apresentação: textos da tela, fora do Compose para serem testados ---
+
+enum class Tom { BOM, ALERTA, NEUTRO }
+
+data class Aparencia(val titulo: String, val descricao: String, val tom: Tom)
+
+fun aparenciaDoEstado(estado: String): Aparencia = when (estado) {
+    "NORMAL" -> Aparencia("Tudo bem", "Frequência cardíaca dentro do esperado", Tom.BOM)
+    "ATENCAO" -> Aparencia("Atenção", "Frequência cardíaca alta com o paciente em repouso", Tom.ALERTA)
+    "DADOS_INSUFICIENTES" -> Aparencia("Sem leituras suficientes", "Verifique o sensor e a conexão do dispositivo", Tom.NEUTRO)
+    else -> Aparencia("Aguardando o dispositivo", "Ainda não chegaram leituras do paciente", Tom.NEUTRO)
+}
+
+fun textoMovimento(movimento: String, fonte: String): String = when (movimento) {
+    "REST" -> "Em repouso"
+    "ACTIVE" -> if (fonte == "celular") "Em movimento (celular)" else "Em movimento"
+    "INVALIDO" -> "Leitura inválida"
+    else -> "—"
+}
+
+fun textoComando(status: String?): String? = when (status) {
+    null -> null
+    "PENDENTE" -> "Enviado, aguardando o dispositivo"
+    "ENTREGUE" -> "Entregue ao dispositivo"
+    "EXECUTADO" -> "Alarme silenciado no dispositivo"
+    else -> status
+}
+
+/** Horário ISO da API (UTC) no fuso do celular, como HH:mm:ss; "—" se não houver. */
+fun horaLocal(iso: String, fuso: ZoneId = ZoneId.systemDefault()): String = try {
+    OffsetDateTime.parse(iso).atZoneSameInstant(fuso).format(DateTimeFormatter.ofPattern("HH:mm:ss"))
+} catch (e: Exception) { "—" }
