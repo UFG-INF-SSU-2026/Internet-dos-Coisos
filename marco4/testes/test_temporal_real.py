@@ -146,7 +146,7 @@ class TestarTimescaleDBReal(unittest.TestCase):
 
                 def assinatura(metodo, rota, corpo=b''):
                     timestamp = str(int(time.time()))
-                    mensagem = f'{timestamp}\\n{metodo} {rota}\\n'.encode() + corpo
+                    mensagem = f'{timestamp}\n{metodo} {rota}\n'.encode() + corpo
                     digest = hmac.new(chave.encode(), mensagem, hashlib.sha256).hexdigest()
                     return {'X-Timestamp': timestamp, 'X-Assinatura': digest}
 
