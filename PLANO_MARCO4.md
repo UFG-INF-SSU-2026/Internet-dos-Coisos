@@ -75,7 +75,7 @@ Código em `marco4/mobile` (Kotlin + Compose). O passo a passo para compilar est
 - [ ] Contribuições individuais dos 4 integrantes (a tabela existe no `marco4/README.md`; cada um preenche a sua)
 - [x] Atualizar `docs/decisoes.md` com as decisões do Marco 4 (D23 a D31)
 - [x] Diagrama atualizado com o app (`docs/arquitetura.mmd`, renderizado no README)
-  - [ ] Regenerar `docs/visuais/arquitetura-final.svg` a partir do `.dot` (precisa do Graphviz: `dot -Tsvg arquitetura-final.dot -o arquitetura-final.svg`)
+  - [x] Regenerar `docs/visuais/arquitetura-final.svg` a partir do `.dot` (precisa do Graphviz: `dot -Tsvg arquitetura-final.dot -o arquitetura-final.svg`)
 
 ## Trilha D: artigo de 10 a 15 páginas
 
