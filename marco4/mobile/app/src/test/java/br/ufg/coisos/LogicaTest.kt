@@ -126,12 +126,11 @@ class ApresentacaoTest {
         assertEquals("Aguardando o dispositivo", aparenciaDoEstado("qualquer coisa").titulo)
     }
 
-    @Test fun movimento_em_portugues_com_a_fonte() {
-        assertEquals("Em repouso", textoMovimento("REST", "esp32"))
-        assertEquals("Em movimento (celular)", textoMovimento("ACTIVE", "celular"))
-        assertEquals("Em movimento", textoMovimento("ACTIVE", "esp32"))
-        assertEquals("—", textoMovimento("—", "—"))
-        assertEquals("Leitura inválida", textoMovimento("INVALIDO", "esp32"))
+    @Test fun movimento_em_portugues() {
+        assertEquals("Em repouso", textoMovimento("REST"))
+        assertEquals("Em movimento", textoMovimento("ACTIVE"))
+        assertEquals("—", textoMovimento("—"))
+        assertEquals("Leitura inválida", textoMovimento("INVALIDO"))
     }
 
     @Test fun status_do_comando_explica_o_ciclo_2() {

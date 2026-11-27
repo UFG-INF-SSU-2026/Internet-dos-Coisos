@@ -91,9 +91,9 @@ fun aparenciaDoEstado(estado: String): Aparencia = when (estado) {
     else -> Aparencia("Aguardando o dispositivo", "Ainda não chegaram leituras do paciente", Tom.NEUTRO)
 }
 
-fun textoMovimento(movimento: String, fonte: String): String = when (movimento) {
+fun textoMovimento(movimento: String): String = when (movimento) {
     "REST" -> "Em repouso"
-    "ACTIVE" -> if (fonte == "celular") "Em movimento (celular)" else "Em movimento"
+    "ACTIVE" -> "Em movimento"
     "INVALIDO" -> "Leitura inválida"
     else -> "—"
 }

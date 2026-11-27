@@ -68,6 +68,9 @@ class CuidadorViewModel(app: Application) : AndroidViewModel(app) {
     var api: Api? by mutableStateOf(null); private set
     var entrando by mutableStateOf(false); private set
     var erroLogin: String? by mutableStateOf(null); private set
+    // Ficam no ViewModel para sobreviver à volta ao login (sessão expirada não apaga a URL do túnel).
+    var url by mutableStateOf("https://")
+    var usuario by mutableStateOf("cuidador01")
 
     var carregando by mutableStateOf(true); private set
     var erroRede: String? by mutableStateOf(null); private set
@@ -78,7 +81,7 @@ class CuidadorViewModel(app: Application) : AndroidViewModel(app) {
     private val movimento = Movimento(app)
     private var tarefas = listOf<Job>()
 
-    fun entrar(url: String, usuario: String, senha: String) {
+    fun entrar(senha: String) {
         erroLogin = null
         val cliente = try { Api(url) } catch (e: IllegalArgumentException) {
             erroLogin = e.message; return
@@ -234,8 +237,6 @@ private fun Marca(tamanho: Int) {
 
 @Composable
 fun TelaLogin(vm: CuidadorViewModel) {
-    var url by rememberSaveable { mutableStateOf("https://") }
-    var usuario by rememberSaveable { mutableStateOf("cuidador01") }
     var senha by rememberSaveable { mutableStateOf("") }
     val forma = RoundedCornerShape(14.dp)
     Column(
@@ -248,18 +249,18 @@ fun TelaLogin(vm: CuidadorViewModel) {
         Text("Coisos Cuidador", fontSize = 26.sp, fontWeight = FontWeight.Bold)
         Text("Acompanhe o paciente e responda aos alertas", color = Apagado, textAlign = TextAlign.Center)
         Spacer(Modifier.height(8.dp))
-        OutlinedTextField(url, { url = it }, label = { Text("Servidor (https://)") }, singleLine = true,
+        OutlinedTextField(vm.url, { vm.url = it }, label = { Text("Servidor (https://)") }, singleLine = true,
             shape = forma, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
             modifier = Modifier.fillMaxWidth())
-        OutlinedTextField(usuario, { usuario = it }, label = { Text("Usuário") }, singleLine = true,
+        OutlinedTextField(vm.usuario, { vm.usuario = it }, label = { Text("Usuário") }, singleLine = true,
             shape = forma, modifier = Modifier.fillMaxWidth())
         OutlinedTextField(senha, { senha = it }, label = { Text("Senha") }, singleLine = true,
             shape = forma, visualTransformation = PasswordVisualTransformation(),
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, imeAction = ImeAction.Done),
-            keyboardActions = KeyboardActions(onDone = { vm.entrar(url, usuario, senha) }),
+            keyboardActions = KeyboardActions(onDone = { vm.entrar(senha) }),
             modifier = Modifier.fillMaxWidth())
         vm.erroLogin?.let { Text(it, color = MaterialTheme.colorScheme.error, textAlign = TextAlign.Center) }
-        Button(onClick = { vm.entrar(url, usuario, senha) }, enabled = !vm.entrando, shape = forma,
+        Button(onClick = { vm.entrar(senha) }, enabled = !vm.entrando, shape = forma,
             modifier = Modifier.fillMaxWidth().height(52.dp)) {
             if (vm.entrando) CircularProgressIndicator(Modifier.size(22.dp), color = Color.White, strokeWidth = 2.dp)
             else Text("Entrar", fontSize = 16.sp)
@@ -298,7 +299,7 @@ fun TelaEstado(vm: CuidadorViewModel) {
                 CartaoEstado(r)
                 Row(Modifier.height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     val fonte = when (r.fonteMovimento) { "celular" -> "medido pelo celular"; "esp32" -> "medido pelo ESP32"; else -> null }
-                    Info("Movimento", textoMovimento(r.movimento, r.fonteMovimento), fonte,
+                    Info("Movimento", textoMovimento(r.movimento), fonte,
                         Modifier.weight(1f).fillMaxHeight())
                     Info("Dispositivo", if (r.online) "Conectado" else "Sem contato",
                         "última leitura ${horaLocal(r.ultimoContato)}", Modifier.weight(1f).fillMaxHeight())
