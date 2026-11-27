@@ -22,6 +22,22 @@ permissions:
 jobs:
   testes:
     runs-on: ubuntu-latest
+    services:
+      timescaledb:
+        image: timescale/timescaledb:latest-pg17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: coisos_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d coisos_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 12
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/coisos_test
     strategy:
       fail-fast: false
       matrix:
@@ -37,7 +53,9 @@ jobs:
           cache-dependency-path: marco4/api/requirements*.txt
 
       - name: Instalar dependências
-        run: pip install -r marco4/api/requirements-test.txt
+        run: |
+          pip install -r marco4/api/requirements-test.txt
+          pip install -r marco4/api/requirements-temporal.txt
 
       # Todos os módulos, inclusive TestarCredenciaisPrivadas (gerar_config em
       # pasta temporária) e os testes do app (token, leitura atrasada, contexto).
@@ -52,6 +70,7 @@ jobs:
           test_melhorias.py
           test_consolidacao.py
           test_app_mobile.py
+          test_temporal_real.py
 
       - name: Guardar relatório JUnit (evidência)
         if: always()
@@ -84,6 +103,23 @@ jobs:
 
       - name: Testes de unidade e APK
         run: ./gradlew testDebugUnitTest assembleDebug --console=plain
+
+      - name: Testes instrumentados Compose no emulador
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          target: google_apis
+          arch: x86_64
+          profile: pixel_2
+          script: cd marco4/mobile && ./gradlew connectedDebugAndroidTest --console=plain
+
+      - name: Guardar relatório instrumentado do app
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: relatorio-instrumentado-app
+          path: marco4/mobile/app/build/outputs/androidTest-results/connected/*.xml
+          retention-days: 90
 
       - name: Guardar relatório JUnit do app (evidência)
         if: always()
