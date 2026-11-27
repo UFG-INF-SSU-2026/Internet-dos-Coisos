@@ -9,7 +9,6 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import kotlin.math.sqrt
 
-/** Testes de unidade do app, na JVM: ./gradlew testDebugUnitTest */
 class IntensidadeTest {
     private val g = GRAVIDADE.toFloat()
 
@@ -17,7 +16,6 @@ class IntensidadeTest {
         assertEquals(0.0, intensidadeMovimento(0f, 0f, g), 1e-6)
 
     @Test fun parado_inclinado_tambem_e_zero() {
-        // a gravidade dividida entre dois eixos: o módulo continua 1 g
         val c = (GRAVIDADE / sqrt(2.0)).toFloat()
         assertEquals(0.0, intensidadeMovimento(c, 0f, c), 1e-6)
     }
@@ -26,7 +24,6 @@ class IntensidadeTest {
         assertEquals(1.0, intensidadeMovimento(0f, 0f, 0f), 1e-9)
 
     @Test fun sacudida_do_ensaio_passa_do_limiar_de_repouso() {
-        // mesmo valor do ensaio no emulador: (0, 15, 9,8) m/s² -> 0,83 g
         val i = intensidadeMovimento(0f, 15f, 9.8f)
         assertEquals(0.83, i, 0.01)
         assertTrue(i > 0.15)
@@ -41,7 +38,9 @@ class UrlTest {
         assertEquals("https://x.trycloudflare.com", urlDaApi("  https://x.trycloudflare.com/ "))
 
     @Test fun recusa_http() {
-        val e = assertThrows(IllegalArgumentException::class.java) { urlDaApi("http://x.trycloudflare.com") }
+        val e = assertThrows(IllegalArgumentException::class.java) {
+            urlDaApi("http://x.trycloudflare.com")
+        }
         assertEquals("Use a URL https:// do túnel", e.message)
     }
 
@@ -86,7 +85,6 @@ class ResumoTest {
     }
 
     @Test fun campos_nulos_viram_traco_e_nao_o_texto_null() {
-        // defeito achado no ensaio do emulador: aparecia "Último contato: null"
         val r = Resumo.de(JSONObject("""
             {"estado":"SEM_DADOS","online":false,"ultimoContatoUtc":null,
              "resumo":{"fcMedia":null,"movimento":null,"fonteMovimento":null},"comando":null}"""))
@@ -112,5 +110,62 @@ class ResumoTest {
              "resumo":{"fcMedia":120.0,"movimento":"ACTIVE","fonteMovimento":"celular"}}"""))
         assertEquals("celular", r.fonteMovimento)
         assertFalse(r.podeReconhecer)
+    }
+
+    @Test fun painel_expoe_cobertura_fila_persistencia_e_historico() {
+        val r = Resumo.de(JSONObject("""
+            {
+              "estado":"ATENCAO","online":true,"lotesRecebidos":12,
+              "resumo":{"fcMedia":121.25,"movimento":"REST","fonteMovimento":"esp32",
+                        "movimentoEsp32":"REST","movimentoCelular":"REST",
+                        "coberturaFc":0.8,"coberturaMov":1.0},
+              "fila":{"pendentes":2,"enfileirados":14,"processados":12,"capacidade":128,
+                      "ultimosLotesProcessados":[{"loteId":"lote-10","origem":"esp32"}]},
+              "historico":[{"horaUtc":"2026-11-27T18:19:27+00:00","estado":"ATENCAO","razao":"condicao_persistiu"}],
+              "historicoLeituras":[{"fc":121.0,"recebidoEmUtc":"2026-11-27T18:19:27+00:00","loteId":"lote-10"}],
+              "persistenciaTemporal":"TimescaleDB","gravacoesNaoPersistidas":1,
+              "celular":{"ultimaLeituraUtc":"2026-11-27T18:19:28+00:00","recebidas":9,"descartadas":1},
+              "comando":{"commandId":"cmd-a","status":"ENTREGUE"}
+            }"""))
+        assertEquals("80%", r.coberturaFc)
+        assertEquals("100%", r.coberturaMov)
+        assertEquals(12, r.lotesRecebidos)
+        assertEquals(2, r.filaPendentes)
+        assertEquals(128, r.capacidadeFila)
+        assertEquals("lote-10", r.ultimosLotes.single().loteId)
+        assertEquals("ATENCAO", r.historico.single().estado)
+        assertEquals(121.0, r.leiturasRecentes.single().fc!!, 0.0)
+        assertEquals("TimescaleDB", r.persistencia)
+        assertEquals(1, r.gravacoesNaoPersistidas)
+        assertEquals(9, r.celularRecebidas)
+        assertEquals("ENTREGUE", r.comandoStatus)
+        assertFalse(r.podeReconhecer)
+    }
+
+    @Test fun reconhecimento_so_habilita_quando_nao_ha_comando_aberto() {
+        val pendente = Resumo.de(JSONObject("""
+            {"estado":"ATENCAO","comando":{"commandId":"cmd-a","status":"PENDENTE"}}"""))
+        val entregue = Resumo.de(JSONObject("""
+            {"estado":"ATENCAO","comando":{"commandId":"cmd-a","status":"ENTREGUE"}}"""))
+        val executado = Resumo.de(JSONObject("""
+            {"estado":"ATENCAO","comando":{"commandId":"cmd-a","status":"EXECUTADO"}}"""))
+        val semComando = Resumo.de(JSONObject("""{"estado":"ATENCAO"}"""))
+        assertFalse(pendente.podeReconhecer)
+        assertFalse(entregue.podeReconhecer)
+        assertTrue(executado.podeReconhecer)
+        assertTrue(semComando.podeReconhecer)
+    }
+
+    @Test fun historico_persistido_converte_leituras() {
+        val resposta = JSONObject("""
+            {"origem":"TimescaleDB","leituras":[
+              {"fc":98.5,"recebidoEmUtc":"2026-11-27T18:19:27+00:00","loteId":"lote-1"},
+              {"fc":null,"recebidoEmUtc":"2026-11-27T18:19:30+00:00","loteId":"lote-2"}]}
+        """)
+        val leituras = leiturasDoHistorico(resposta)
+        assertEquals(2, leituras.size)
+        assertEquals(98.5, leituras.first().fc!!, 0.0)
+        assertNull(leituras.last().fc)
+        assertEquals("lote-2", leituras.last().loteId)
     }
 }
