@@ -14,15 +14,15 @@ Em `marco4/testes`, com as dependências instaladas:
 
 A suíte não precisa de Wokwi, banco ou rede. A API roda dentro do processo com `TestClient`, as credenciais são geradas por teste, o relógio monotônico é controlado e o TimescaleDB é trocado por um objeto simulado (`FakeHistorico`).
 
-**Resultado registrado:** 44 testes aprovados.
-- Execução local: [`evidencias/testes-api.txt`](evidencias/testes-api.txt), com Python 3.14 no commit `a94e70b`.
+**Resultado registrado:** 49 testes aprovados.
+- Execução local: [`evidencias/testes-api.txt`](evidencias/testes-api.txt), com Python 3.14 no commit `b33f7a1`. Os 5 testes novos cobrem o silêncio adaptativo (D32).
 - CI no GitHub Actions: roda a cada push na `main`, com Python 3.10 e 3.12 ([histórico de execuções](https://github.com/UFG-INF-SSU-2026/Internet-dos-Coisos/actions/workflows/testes.yml)). A primeira execução, com 42 testes, foi o [run 46039476817](https://github.com/UFG-INF-SSU-2026/Internet-dos-Coisos/actions/runs/46039476817) no merge `6f1a443`. Os relatórios JUnit ficam nos artefatos `relatorio-junit-py3.10` e `relatorio-junit-py3.12`.
 
 ### Módulos e requisitos cobertos
 
 | Arquivo de teste | Módulo exercitado | Requisito coberto | Testes |
 |---|---|---|---|
-| `test_regra.py` | `api/regra.py` | Regra com estado e tempo: janela, cobertura, persistência, histerese, silêncio | 7 |
+| `test_regra.py` | `api/regra.py` | Regra com estado e tempo: janela, cobertura, persistência, histerese, silêncio (fixo e adaptativo) | 12 |
 | `test_api.py` | `api/app.py` (rotas do ESP32 e do painel) | Autenticação HMAC, autorização dispositivo/paciente/cuidador, ciclo 1 e ciclo 2 | 12 |
 | `test_melhorias.py` | `app.py` (fila, WebSocket, histórico) | Fila FIFO, WebSocket autenticado, `/api/saude` sem dados pessoais | 6 |
 | `test_consolidacao.py` | `app.py` + `temporal.py` + `gerar_config.py` | Gravação de leituras, transições e comandos; consulta do histórico; segredos fora do Git | 4 |
@@ -48,6 +48,16 @@ A lógica que não depende do Android fica em [`Logica.kt`](../mobile/app/src/ma
 **Resultado registrado:** 15 testes aprovados.
 - Execução local: [`evidencias/testes-app.txt`](evidencias/testes-app.txt).
 - CI: job `app-android` do mesmo workflow. Roda os testes, gera o APK e guarda os artefatos `relatorio-junit-app` e `coisos-cuidador-debug-apk`.
+
+### Complemento do PR #6 (execução no CI pendente)
+
+Foram acrescentados os seguintes testes; os resultados definitivos devem ser atualizados após o GitHub Actions desta branch:
+- `test_regra.py`: restauração da janela, estado, histórico e intervalos do silêncio adaptativo.
+- `test_consolidacao.py`: reinício da API com snapshot persistido e comando `PENDENTE`.
+- `test_temporal_real.py`: gravação, consulta e recuperação de leituras, transições e status do comando contra TimescaleDB real. Localmente, requer `DATABASE_URL`; no CI, usa `timescale/timescaledb:latest-pg17`.
+- Android: 3 novos testes JVM e 2 testes instrumentados Compose para login e recusa de URL incompleta.
+
+O estado restaurado usa até 10 leituras recentes, até 20 transições e o registro de status mais recente do comando. Movimento do celular, fila FIFO e contadores da sessão não são restaurados. Se o banco estiver indisponível, a API inicia em memória vazia.
 
 ### Entradas, resultado esperado e resultado observado
 
@@ -111,6 +121,50 @@ Este ensaio **não substitui** os itens 2.1 a 2.4 com celular real, Wokwi e Time
 
 Os prints foram refeitos com o APK corrigido, o mesmo que está em `apk/`. O defeito do "null" ficou coberto pelo teste `campos_nulos_viram_traco_e_nao_o_texto_null`.
 
+### 2.0b Ensaio com o ESP32 no Wokwi do VS Code (27/11/2026)
+
+O ESP32 simulado no Wokwi do VS Code usou o mesmo `sketch.ino` e o mesmo `diagram.json`, compilados com PlatformIO.
+- **Caminho de rede:** o ESP32 falou com a API pelo gateway local (`host.wokwi.internal`, D33), e o app falou com a API pelo túnel HTTPS.
+- **Controle:** as teclas foram enviadas pela serial RFC2217 (porta 4000).
+- **API:** ensaio sem banco, com a regra de silêncio adaptativo (D32).
+- **Registros:** log da serial em [`evidencias/ensaio-wokwi-serial.txt`](evidencias/ensaio-wokwi-serial.txt) e prints em [`evidencias/app/wokwi/`](evidencias/app/wokwi/).
+
+**Primeira tentativa, que motivou D32 e D33:**
+- Pelo túnel, todo lote recebeu `HTTP 301`, porque a Cloudflare passou a redirecionar `http://` para HTTPS.
+- Pelo gateway local, os lotes chegaram, mas a simulação rodava a ~40% da velocidade real: lotes de 3 s chegavam a cada 7–10 s de relógio. Com o silêncio fixo de 8 s, o estado alternava `ATENCAO`/`NORMAL`/`DADOS_INSUFICIENTES`.
+
+**Segunda tentativa, com as correções:**
+
+| Passo (hora) | Observado | Evidência |
+|---|---|---|
+| API reiniciada com o app aberto | O token antigo deixou de valer: o app voltou ao login com "Sessão expirou, entre de novo" | `w0-sessao-expirou.png` |
+| Tecla `1` (16:51:19) | `NORMAL` (`condicao_cessou`) | `x1-normal.png` |
+| Tecla `2` (16:51:54) | `ATENCAO` às 16:52:17, estável durante o alerta: nenhuma alternância por silêncio | `x2-atencao.png` |
+| **Reconhecer alerta** no app | O ESP32 do Wokwi recebeu `cmd-3433f8fc` às 16:52:49, silenciou o buzzer e respondeu ACK (HTTP 200); o comando ficou `EXECUTADO` com `canal = app` | `x3-reconhecido.png`, log 16:52:49 |
+| Acelerômetro do emulador em 0,83 g (16:53:02) | `NORMAL` às 16:53:09 com `razao = movimento_no_celular` e `fonte: celular` | `x4-contexto.png` |
+| Movimento parado (16:53:15) | `ATENCAO` de novo às 16:53:28, com `fonte: esp32` | `x5-alerta-volta.png` |
+| Tecla `f`, queda de rede do ESP32 (16:53:49) | Lotes com `HTTP -1`; o ESP32 entrou em **MODO LOCAL** às 16:54:15 com o alerta local (FC 135 em repouso); o app mostrou `DADOS_INSUFICIENTES` e "ESP32 sem contato recente" | `x6-esp32-sem-rede.png`, log 16:54:15 |
+| Tecla `f` de novo (16:54:34) | Às 16:54:37: "API respondeu: estado volta a vir da API", lote com HTTP 200; `ATENCAO` às 16:54:45 | `x7-recuperado.png` |
+
+Neste ensaio não foram verificados: o TimescaleDB (2.2), o certificado no navegador (2.3) e o celular físico.
+
+### 2.0c Sensor de pulso no Wokwi (27/11/2026)
+
+Depois da troca do potenciômetro pelo sensor de pulso simulado (D34), cada cenário foi repetido no Wokwi do VS Code, com a FC medida pela detecção de batimentos do ESP32.
+O log está em [`evidencias/ensaio-sensor-pulso.txt`](evidencias/ensaio-sensor-pulso.txt).
+
+| Entrada no chip | FC medida pelo ESP32 | Estado na API |
+|---|---|---|
+| Potenciômetro no meio (125 bpm), cenário `0` | 125,0 bpm, estável | `ATENCAO` (repouso) |
+| Cenário `1`: coração a 78 bpm | 76,9–78,9 bpm a partir do 4º batimento | `NORMAL` |
+| Cenário `2`: coração a 135 bpm | 136,4 bpm | `ATENCAO` |
+| Cenário `3`: sensor fora do dedo | batimentos param; FC inválida (`null`) em ~3 s | `DADOS_INSUFICIENTES` |
+| Cenário `4`: 135 bpm com artefato de movimento (g = 1,75) | 97–120 bpm, oscilando: o balanço cria e esconde picos | `NORMAL` (movimento explica a FC) |
+
+Com o chip, a simulação ficou em ~32% da velocidade real; o silêncio adaptativo (D32) absorveu a diferença.
+Na primeira montagem, os cenários `1` e `2` não mudavam a FC, porque o Wokwi não simula o DAC do ESP32; o ritmo passou a ser escolhido por dois pinos digitais.
+O Wokwi do VS Code só relê o `diagram.json` e a lista de pinos do chip ao reiniciar o simulador.
+
 ### 2.1 Fluxo e contexto
 
 | Passo | Resultado esperado | Registro |
@@ -156,13 +210,25 @@ Os prints foram refeitos com o APK corrigido, o mesmo que está em `apk/`. O def
 | Desligar o modo avião | O app volta a atualizar sozinho em até 2 s, sem novo login | |
 | Parar a API por cerca de 10 s e iniciá-la de novo | O app mostra erro de rede; ao voltar, retoma com o mesmo token (válido por 8 h). O estado corrente recomeça vazio (pendência declarada) | |
 
+### 2.5 Recuperação após reinício com TimescaleDB
+
+| Passo | Resultado esperado | Registro |
+|---|---|---|
+| Executar o fluxo 2.1 com banco ativo até entrar em `ATENCAO` | Transição e leituras do ESP32 gravadas no TimescaleDB | |
+| Criar comando de reconhecimento, sem desligar o ESP32 antes da entrega/ACK | A tabela `comandos` registra `PENDENTE` ou `ENTREGUE` | |
+| Reiniciar apenas a API, mantendo TimescaleDB ativo | Ao iniciar, API carrega janela recente, histórico e último status do comando (D35) | |
+| Consultar `GET /api/pacientes/patient-0042/estado` | Estado volta como `ATENCAO`; comando pendente continua disponível para o ESP32 | |
+| Permitir o GET do comando e ACK | O ESP32 executa e o estado persistido passa a `EXECUTADO` | |
+| Reiniciar sem `DATABASE_URL` ou com banco indisponível | API inicia em memória vazia; não declara restauração que não aconteceu | |
+
+
 ## 3. O que não é verificado automaticamente
 
 | Item | Situação | Impacto |
 |---|---|---|
-| TimescaleDB real no CI | Coberto com banco simulado; o banco real só no ensaio (2.2) | Um erro de SQL só aparece no ensaio |
-| Testes instrumentados do app | A lógica do app tem 15 testes de unidade; a interface (Compose) só é verificada no ensaio (2.0, 2.1, 2.3, 2.4) | Regressões de layout dependem de teste manual |
+| TimescaleDB real no CI | Teste real adicionado no PR #6; o job usa um serviço TimescaleDB em contêiner. Aguardar execução verde | Exercita DDL, hypertables, gravação, consulta e restauração de dados |
+| Testes instrumentados do app | Dois testes Compose adicionados no PR #6 e executados em emulador via Actions; aguardar CI | O ensaio manual em aparelho físico continua necessário para sensor e conectividade |
 | TLS no ESP32 | Não implementado (D17) | Leituras sintéticas podem ser lidas no caminho |
-| Recuperar o estado e o comando pendente depois de reiniciar a API | Não implementado | Depois do reinício, o estado recomeça vazio até chegarem novos lotes |
+| Recuperar o estado e o comando pendente depois de reiniciar a API | Implementação D35 + testes de unidade/integrados no PR #6; aguardar CI e ensaio com banco real | Restaura leituras, transições e último comando; fila FIFO e movimento do celular continuam voláteis |
 
 Os quatro itens estão declarados como pendências para 11/12 no [README](../README.md#limitações-e-pendências).

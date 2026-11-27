@@ -5,13 +5,20 @@ Só a análise: nada de HTTP, login ou chave aqui. Recebe leituras e o instante
 """
 
 from collections import deque
+from statistics import median
 
 # Tempos curtos para a demonstração de 5 min (o projeto original usava janela de 60 s).
 # O ESP32 mede 1 leitura por segundo: 10 leituras = 10 s.
 JANELA_FC = 10              # média da FC nas últimas 10 leituras
 JANELA_MOV = 5              # movimento predominante nas últimas 5 leituras
 COBERTURA_MINIMA = 0.70     # menos de 70% de leituras válidas: DADOS_INSUFICIENTES
-SILENCIO_S = 8              # nenhum lote por 8 s: DADOS_INSUFICIENTES
+SILENCIO_S = 8              # nenhum lote por 8 s: DADOS_INSUFICIENTES (piso do limite)
+# O limite de silêncio acompanha o ritmo real dos lotes: cerca de 2,5 lotes perdidos.
+# Com o ESP32 a cada 3 s, continua 8 s; num simulador lento (lote a cada 8 s de relógio),
+# sobe para 20 s em vez de declarar silêncio entre dois lotes normais.
+LOTES_PERDIDOS_SILENCIO = 2.5
+SILENCIO_MAX_S = 30         # teto: falha de verdade continua detectada em até 30 s
+INTERVALOS_OBSERVADOS = 5   # mediana dos últimos 5 intervalos entre lotes
 TEMPO_MINIMO_ESTADO_S = 4   # evita ATENCAO/NORMAL alternando a cada lote
 FC_LIMIAR_ENTRADA = 100.0   # entra em ATENCAO acima disso...
 FC_LIMIAR_SAIDA = 92.0      # ...e só sai abaixo disso (histerese)
@@ -52,13 +59,12 @@ class Monitor:
         self.resumo = {}
         self.historico = deque(maxlen=20)
         self.mov_app = None          # (movimento, instante) da última leitura do celular
+        self.intervalos = deque(maxlen=INTERVALOS_OBSERVADOS)   # segundos entre lotes recentes
 
     def restaurar(self, leituras, historico, agora, idade_ultimo_lote_s=0.0):
-        """Reconstrói a janela e o último estado a partir do snapshot do banco.
+        """Reconstrói a janela e o último estado a partir do snapshot do banco."""
+        from datetime import datetime
 
-        O contexto do celular não é restaurado: D31 não persiste amostras móveis,
-        portanto ele precisa ser observado novamente após o reinício.
-        """
         self.amostras.clear()
         for leitura in leituras[-JANELA_FC:]:
             self.amostras.append((fc_valida(leitura.get('fc')), movimento(leitura.get('g'))))
@@ -68,6 +74,23 @@ class Monitor:
         self.mov_app = None
         self.persistencia = 0
         self.historico.clear()
+
+        # D32: reconstroi a mediana dos intervalos entre lotes a partir dos
+        # horarios finais de cada lote persistido.
+        if hasattr(self, 'intervalos'):
+            self.intervalos.clear()
+            finais_por_lote = {}
+            for leitura in leituras:
+                lote, ts = leitura.get('loteId'), leitura.get('recebidoEmUtc')
+                if lote and ts:
+                    try:
+                        instante = datetime.fromisoformat(ts.replace('Z', '+00:00'))
+                        finais_por_lote[lote] = max(finais_por_lote.get(lote, instante), instante)
+                    except (TypeError, ValueError):
+                        continue
+            finais = sorted(finais_por_lote.values())
+            for anterior, atual in zip(finais, finais[1:]):
+                self.intervalos.append((atual - anterior).total_seconds())
 
         for indice, evento in enumerate(historico[-20:], start=1):
             self.historico.append({
@@ -98,6 +121,8 @@ class Monitor:
         """Guarda as leituras do lote e reavalia o estado."""
         for leitura in leituras:
             self.amostras.append((fc_valida(leitura.get('fc')), movimento(leitura.get('g'))))
+        if self.ultimo_lote_em is not None:
+            self.intervalos.append(agora - self.ultimo_lote_em)
         self.ultimo_lote_em = agora
         return self.avaliar(agora)
 
@@ -111,9 +136,18 @@ class Monitor:
         """
         mov = 'REST' if intensidade <= G_REST_TOLERANCIA else 'ACTIVE'
         self.mov_app = (mov, agora)
-        if self.ultimo_lote_em is None or agora - self.ultimo_lote_em > SILENCIO_S:
+        if self._em_silencio(agora):
             return None
         return self.avaliar(agora, conta_persistencia=False)
+
+    def limite_silencio(self):
+        """Segundos sem lote para declarar silêncio, conforme o ritmo observado."""
+        if not self.intervalos:
+            return SILENCIO_S
+        return min(SILENCIO_MAX_S, max(SILENCIO_S, LOTES_PERDIDOS_SILENCIO * median(self.intervalos)))
+
+    def _em_silencio(self, agora):
+        return self.ultimo_lote_em is None or agora - self.ultimo_lote_em > self.limite_silencio()
 
     def calcular(self, agora=None):
         """Média, movimento predominante e cobertura das janelas."""
@@ -164,8 +198,8 @@ class Monitor:
         return self._transitar('NORMAL', 'janela_com_cobertura', agora)
 
     def verificar_silencio(self, agora):
-        """Nenhum lote há SILENCIO_S segundos (rede caiu): chamado quando o painel consulta."""
-        if self.ultimo_lote_em is None or agora - self.ultimo_lote_em <= SILENCIO_S:
+        """Nenhum lote dentro do limite de silêncio (rede caiu): chamado quando o painel consulta."""
+        if self.ultimo_lote_em is None or not self._em_silencio(agora):
             return None
         self.persistencia = 0
         return self._transitar('DADOS_INSUFICIENTES', 'sem_leituras_recentes', agora)

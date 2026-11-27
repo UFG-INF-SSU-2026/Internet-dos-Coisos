@@ -1,0 +1,6 @@
+{
+  "name": "Sensor de pulso (PPG)",
+  "author": "Grupo Internet dos Coisos - UFG",
+  "pins": ["VCC", "GND", "BPM", "R0", "OUT", "DEDO", "MOV", "R1"],
+  "controls": []
+}

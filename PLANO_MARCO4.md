@@ -26,11 +26,12 @@ Código em `marco4/mobile` (Kotlin + Compose). O passo a passo para compilar est
 - [x] Botão **Reconhecer alerta**
 - [x] Acelerômetro envia a intensidade do movimento a cada 2 s (é o segundo produtor)
 - [x] Só HTTPS (`usesCleartextTraffic=false`), e o Android valida o certificado do túnel
-- [x] Build Gradle sincronizado e compilação validada pelo CI Android (PR #6; build debug).
+- [ ] Abrir no Android Studio e validar o Gradle Sync localmente (o build e o APK debug já foram verificados pelo CI anterior).
 - [ ] Testar num celular real contra a URL do túnel Cloudflare
 - [x] Gerar o APK e salvar em `marco4/apk/coisos-cuidador.apk`
 - [x] Tirar prints das telas (login, estado NORMAL, ATENCAO, erro de rede) no emulador: `marco4/docs/evidencias/app/`
 - [ ] Testar o APK no celular real (acelerômetro físico) junto com o Wokwi
+- [x] Sugestão do professor: o potenciômetro deixou de ser o sensor; FC medida numa onda de pulso simulada (chip `sensor-pulso`), com detecção de batimentos no ESP32 (D34)
 
 ## Trilha B: API, testes e CI ✅ (PR #3, merge `6f1a443`)
 
@@ -89,15 +90,15 @@ Código em `marco4/mobile` (Kotlin + Compose). O passo a passo para compilar est
 - [x] PDF em `marco4/docs/artigo.pdf`
 - [ ] Revisão do grupo (texto, autores, eventuais e-mails)
 - [x] Ensaio do app no emulador no artigo (Seção 6.6, figura com 4 telas; artigo com 15 páginas, no limite)
+- [x] Ensaio do ESP32 no Wokwi do VS Code com o app (D32, D33) e sensor de pulso (D34) no artigo (Seção 6.7; ainda 15 páginas)
 - [ ] Versão de 11/12: incluir os resultados do ensaio completo com o APK (celular real, Wokwi e banco), sem passar de 15 páginas
 
+### Complemento técnico do PR #6 (em validação)
 
-
-### Complemento técnico em revisão (PR #6)
-
-- Painel Android ampliado com gráfico FC, cobertura, fila FIFO, persistência, histórico e ciclo de comando.
-- API reconstitui janela recente, última transição e estado do comando a partir do TimescaleDB na inicialização. O contexto momentâneo do celular e a fila FIFO não são restaurados, pois não são persistidos.
-- Adicionados teste instrumentado Compose, teste de reinício e integração contra TimescaleDB real. Marcar como concluídos apenas após o CI finalizar e revisão do grupo.
+- Painel Android nativo ampliado com gráfico de FC, cobertura, fila FIFO, persistência, histórico e ciclo do comando.
+- Na inicialização, a API reconstrói janela recente, histórico de transições e último status de comando a partir do TimescaleDB.
+- A fila FIFO, contadores da sessão e movimento momentâneo do celular continuam voláteis; não são persistidos.
+- Foram acrescentados testes de reinício, integração com TimescaleDB real e testes instrumentados Compose. Marcar como concluídos somente depois do CI e da revisão do grupo.
 
 ## Fim do dia: todos juntos
 
@@ -112,7 +113,7 @@ Código em `marco4/mobile` (Kotlin + Compose). O passo a passo para compilar est
 Vão para o README com impacto e justificativa, como o PDF permite.
 
 - [ ] TLS no ESP32
-- [ ] Teste de integração com TimescaleDB real no CI (teste adicionado no PR #6; aguardando execução com serviço Docker).
+- [ ] Teste de integração com TimescaleDB real no CI (teste adicionado no PR #6; aguardando execução do serviço Docker).
 - [x] Testes de unidade do app na JVM (15, no CI com o APK como artefato)
-- [ ] Testes instrumentados de interface do app (implementados no PR #6; aguardando CI em emulador).
-- [ ] Recuperar o estado e o comando pendente quando a API reinicia (implementação e teste de reinício no PR #6; aguardando CI e revisão).
+- [ ] Testes instrumentados de interface do app (2 testes Compose adicionados no PR #6; aguardando CI em emulador).
+- [ ] Recuperar o estado e o comando pendente quando a API reinicia (implementação e teste adicionados no PR #6; aguardando CI/revisão).

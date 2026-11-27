@@ -64,8 +64,9 @@ def main():
         CONFIG_ESP32.write_text(
             '#pragma once\n'
             '// Arquivo privado: NAO publicar no GitHub nem em Wokwi publico.\n'
-            '// Troque a URL pela URL atual do tunel com http://.\n'
-            'const char* API_BASE_URL = "http://COLE-AQUI-A-URL-DO-TUNEL.trycloudflare.com";\n'
+            '// Wokwi no VS Code: o gateway local alcanca a API desta maquina (D33).\n'
+            '// O tunel trycloudflare redireciona http:// para https:// (301) desde 27/11/2026.\n'
+            'const char* API_BASE_URL = "http://host.wokwi.internal:5000";\n'
             f'const char* DEVICE_API_KEY = "{chave}";\n', encoding='utf-8')
         print('[OK] produtor/config.h criado com a chave compartilhada com a API.')
     else:
