@@ -18,15 +18,16 @@ A suíte não precisa de Wokwi, banco ou rede. A API roda dentro do processo com
 - Execução local: [`evidencias/testes-api.txt`](evidencias/testes-api.txt), com Python 3.14 no commit `b33f7a1`. Os 5 testes novos cobrem o silêncio adaptativo (D32).
 - CI no GitHub Actions: roda a cada push na `main`, com Python 3.10 e 3.12 ([histórico de execuções](https://github.com/UFG-INF-SSU-2026/Internet-dos-Coisos/actions/workflows/testes.yml)). A primeira execução, com 42 testes, foi o [run 46039476817](https://github.com/UFG-INF-SSU-2026/Internet-dos-Coisos/actions/runs/46039476817) no merge `6f1a443`. Os relatórios JUnit ficam nos artefatos `relatorio-junit-py3.10` e `relatorio-junit-py3.12`.
 
+**Atualização PR #6 — CI em 27/11/2026:** a suíte Python reportou 56 casos, com zero falhas, zero erros e zero ignorados, nas matrizes Python 3.10 e 3.12. O job usou um serviço TimescaleDB real (timescale/timescaledb:latest-pg17) e executou test_temporal_real.py. O teste confirmou DDL, gravação, consulta e reconstrução do snapshot de leituras, transições e comando. O relatório JUnit da execução está nos artefatos relatorio-junit-py3.10 e relatorio-junit-py3.12 do [run 46068110548](https://github.com/UFG-INF-SSU-2026/Internet-dos-Coisos/actions/runs/46068110548).
 ### Módulos e requisitos cobertos
 
 | Arquivo de teste | Módulo exercitado | Requisito coberto | Testes |
 |---|---|---|---|
-| `test_regra.py` | `api/regra.py` | Regra com estado e tempo: janela, cobertura, persistência, histerese, silêncio (fixo e adaptativo) | 12 |
+| `test_regra.py` | `api/regra.py` | Regra com estado e tempo: janela, cobertura, persistência, histerese, silêncio adaptativo e restauração após reinício | 13 |
 | `test_api.py` | `api/app.py` (rotas do ESP32 e do painel) | Autenticação HMAC, autorização dispositivo/paciente/cuidador, ciclo 1 e ciclo 2 | 12 |
 | `test_melhorias.py` | `app.py` (fila, WebSocket, histórico) | Fila FIFO, WebSocket autenticado, `/api/saude` sem dados pessoais | 6 |
-| `test_consolidacao.py` | `app.py` + `temporal.py` + `gerar_config.py` | Gravação de leituras, transições e comandos; consulta do histórico; segredos fora do Git | 4 |
-| `test_app_mobile.py` | `app.py` (rotas do app) + `regra.py` (contexto) | Token do app, segundo produtor, validade e atraso, mudança de contexto, ciclo 2 pelo app | 15 |
+| `test_consolidacao.py` | `app.py` + `temporal.py` + `gerar_config.py` | Gravação, consulta, ciclo de comando, reinício com snapshot e segredos fora do Git | 5 |
+| `test_app_mobile.py` | `app.py` (rotas do app) + `regra.py` (contexto) | Token do app, segundo produtor, validade e atraso, mudança de contexto, ciclo 2 pelo app | 15 |\n| `test_temporal_real.py` | `armazenamento.py` + TimescaleDB | DDL, hypertables, gravação, consulta e recuperação de dados reais | 1 |
 
 ### Testes de unidade do app Android
 
@@ -45,13 +46,13 @@ A lógica que não depende do Android fica em [`Logica.kt`](../mobile/app/src/ma
 | `CorpoMovimentoTest` | `corpoMovimento` | Corpo igual ao contrato `app-v1`; intensidade limitada a 0–8 | 2 |
 | `ResumoTest` | `Resumo.de` | Leitura do `/estado`; campos nulos viram "—" (regressão do ensaio 2.0); botão só ativo em `ATENCAO` | 4 |
 
-**Resultado registrado:** 15 testes aprovados.
+**Resultado registrado antes do PR #6:** 15 testes aprovados. **PR #6:** 18 testes JVM aprovados no job Android; dois testes instrumentados Compose foram adicionados e aguardam a conclusão do emulador.
 - Execução local: [`evidencias/testes-app.txt`](evidencias/testes-app.txt).
 - CI: job `app-android` do mesmo workflow. Roda os testes, gera o APK e guarda os artefatos `relatorio-junit-app` e `coisos-cuidador-debug-apk`.
 
-### Complemento do PR #6 (execução no CI pendente)
+### Complemento do PR #6 (CI parcialmente concluído)
 
-Foram acrescentados os seguintes testes; os resultados definitivos devem ser atualizados após o GitHub Actions desta branch:
+Foram acrescentados os seguintes testes. Os testes Python e JVM passaram; os testes instrumentados Compose ainda aguardam o resultado final do job Android:
 - `test_regra.py`: restauração da janela, estado, histórico e intervalos do silêncio adaptativo.
 - `test_consolidacao.py`: reinício da API com snapshot persistido e comando `PENDENTE`.
 - `test_temporal_real.py`: gravação, consulta e recuperação de leituras, transições e status do comando contra TimescaleDB real. Localmente, requer `DATABASE_URL`; no CI, usa `timescale/timescaledb:latest-pg17`.
@@ -226,9 +227,9 @@ O Wokwi do VS Code só relê o `diagram.json` e a lista de pinos do chip ao rein
 
 | Item | Situação | Impacto |
 |---|---|---|
-| TimescaleDB real no CI | Teste real adicionado no PR #6; o job usa um serviço TimescaleDB em contêiner. Aguardar execução verde | Exercita DDL, hypertables, gravação, consulta e restauração de dados |
-| Testes instrumentados do app | Dois testes Compose adicionados no PR #6 e executados em emulador via Actions; aguardar CI | O ensaio manual em aparelho físico continua necessário para sensor e conectividade |
+| TimescaleDB real no CI | ✅ Executado no PR #6 com serviço TimescaleDB, em Python 3.10 e 3.12 | Exercitou DDL, hypertables, gravação, consulta e restauração de dados |
+| Testes instrumentados do app | Dois testes Compose adicionados no PR #6; job de emulador ainda em execução | O ensaio manual em aparelho físico continua necessário para sensor e conectividade |
 | TLS no ESP32 | Não implementado (D17) | Leituras sintéticas podem ser lidas no caminho |
-| Recuperar o estado e o comando pendente depois de reiniciar a API | Implementação D35 + testes de unidade/integrados no PR #6; aguardar CI e ensaio com banco real | Restaura leituras, transições e último comando; fila FIFO e movimento do celular continuam voláteis |
+| Recuperar o estado e o comando pendente depois de reiniciar a API | ✅ Teste do ciclo de reinício e teste de integração TimescaleDB passaram no PR #6 | Restaura leituras, transições e último comando; fila FIFO e movimento do celular continuam voláteis. Ensaio com o sistema montado ainda precisa ser registrado |
 
 Os quatro itens estão declarados como pendências para 11/12 no [README](../README.md#limitações-e-pendências).
