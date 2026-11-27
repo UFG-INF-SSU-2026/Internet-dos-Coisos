@@ -65,5 +65,47 @@ class TestarRegra(unittest.TestCase):
         self.assertEqual(m.historico[-1]['razao'], 'sem_leituras_recentes')
 
 
+class TestarSilencioAdaptativo(unittest.TestCase):
+    """O limite de silêncio acompanha o ritmo dos lotes (achado do ensaio no Wokwi)."""
+
+    def test_ritmo_normal_mantem_8_s(self):
+        m = Monitor()
+        alimentar(m, 80, 3, 30)               # lote a cada 3 s: 2,5 x 3 = 7,5 -> piso de 8 s
+        self.assertEqual(m.limite_silencio(), 8)
+
+    def test_simulador_lento_nao_alterna_com_dados_insuficientes(self):
+        # Wokwi a ~40% da velocidade: os lotes de 3 s chegam a cada 8 s de relógio.
+        m = Monitor()
+        for agora in range(8, 120, 8):
+            m.verificar_silencio(agora - 1)   # o app consulta logo antes do próximo lote
+            m.adicionar([{'fc': 135, 'g': 1.0}] * 3, agora)
+        self.assertEqual(m.limite_silencio(), 20)
+        self.assertEqual(m.estado, 'ATENCAO')
+        razoes = [e['razao'] for e in m.historico]
+        self.assertNotIn('sem_leituras_recentes', razoes[2:])   # depois de aprender o ritmo
+
+    def test_falha_real_ainda_detectada_com_teto(self):
+        m = Monitor()
+        for agora in range(0, 200, 20):       # ritmo muito lento: 2,5 x 20 = 50 -> teto de 30 s
+            m.adicionar([{'fc': 80, 'g': 1.0}] * 3, agora)
+        self.assertEqual(m.limite_silencio(), 30)
+        m.verificar_silencio(180 + 29)
+        self.assertNotEqual(m.estado, 'DADOS_INSUFICIENTES')
+        m.verificar_silencio(180 + 31)
+        self.assertEqual(m.estado, 'DADOS_INSUFICIENTES')
+
+    def test_uma_queda_isolada_nao_desloca_a_mediana(self):
+        m = Monitor()
+        alimentar(m, 80, 3, 15)
+        m.adicionar([{'fc': 80, 'g': 1.0}] * 3, 40)   # 25 s de queda
+        alimentar(m, 80, 43, 46)
+        self.assertEqual(m.limite_silencio(), 8)
+
+    def test_sem_nenhum_lote_nao_declara_silencio(self):
+        m = Monitor()
+        self.assertIsNone(m.verificar_silencio(100))
+        self.assertIsNone(m.estado)
+
+
 if __name__ == '__main__':
     unittest.main()

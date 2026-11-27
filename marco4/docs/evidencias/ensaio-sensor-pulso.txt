@@ -1,0 +1,68 @@
+# Ensaio do sensor de pulso no Wokwi do VS Code (27/11/2026)
+# Hora real | [ms do ESP32] FC medida pela onda | g | batimentos detectados | envoltoria | estado
+## Parte 1: cenarios 1 (78 bpm), 2 (135 bpm) e 0 (potenciometro no meio = 125 bpm)
+17:23:21 [5058] fc=125.0 g=1.00 bat=7 onda=1.07-1.75V estado=SEM_DADOS
+17:23:21 [5246] estado (API): SEM_DADOS -> ATENCAO
+17:23:21 [5246] lote 1: HTTP 200
+17:23:24 [6058] fc=125.0 g=1.00 bat=9 onda=1.06-1.71V estado=ATENCAO
+17:23:28 [7058] fc=125.0 g=1.00 bat=11 onda=1.01-1.70V estado=ATENCAO
+17:23:31 [8058] fc=125.0 g=1.00 bat=13 onda=1.00-1.68V estado=ATENCAO
+17:23:31 [8246] lote 2: HTTP 200
+17:23:34 [9058] fc=125.0 g=1.00 bat=15 onda=0.99-1.66V estado=ATENCAO
+17:23:37 [10058] fc=125.0 g=1.00 bat=17 onda=1.00-1.63V estado=ATENCAO
+>>> tecla 1 (17:23:39)
+17:23:41 [11058] fc=125.0 g=1.00 bat=19 onda=0.98-1.60V estado=ATENCAO
+17:23:42 [11246] lote 3: HTTP 200
+17:23:45 [12058] fc=124.7 g=1.00 bat=21 onda=1.07-1.90V estado=ATENCAO
+17:23:48 [13058] fc=120.2 g=1.00 bat=22 onda=1.02-1.74V estado=ATENCAO
+17:23:51 [14058] fc=78.9 g=1.00 bat=23 onda=0.99-1.61V estado=ATENCAO
+17:23:52 [14246] lote 4: HTTP 200
+17:23:55 [15058] fc=78.9 g=1.00 bat=25 onda=1.07-1.96V estado=ATENCAO
+17:23:58 [16058] fc=78.9 g=1.00 bat=26 onda=1.10-1.79V estado=ATENCAO
+17:24:01 [17058] fc=78.9 g=1.00 bat=27 onda=1.00-1.64V estado=ATENCAO
+17:24:02 [17246] lote 5: HTTP 200
+17:24:05 [18058] fc=76.9 g=1.00 bat=29 onda=1.03-1.89V estado=ATENCAO
+17:24:08 [19058] fc=78.9 g=1.00 bat=30 onda=1.08-1.84V estado=ATENCAO
+17:24:12 [20058] fc=76.9 g=1.00 bat=31 onda=1.00-1.69V estado=ATENCAO
+17:24:12 [20246] estado (API): ATENCAO -> NORMAL
+17:24:12 [20246] lote 6: HTTP 200
+17:24:14 [21058] fc=78.9 g=1.00 bat=32 onda=0.99-1.55V estado=NORMAL
+17:24:17 [22058] fc=78.9 g=1.00 bat=34 onda=1.07-1.88V estado=NORMAL
+17:24:20 [23058] fc=78.9 g=1.00 bat=35 onda=1.03-1.74V estado=NORMAL
+17:24:20 [23246] lote 7: HTTP 200
+17:24:22 [24058] fc=78.9 g=1.00 bat=36 onda=0.98-1.59V estado=NORMAL
+>>> tecla 2 (17:24:24)
+17:24:25 [25058] fc=76.9 g=1.00 bat=38 onda=1.08-1.96V estado=NORMAL
+17:24:27 [26058] fc=78.9 g=1.00 bat=40 onda=1.06-1.73V estado=NORMAL
+17:24:28 [26245] lote 8: HTTP 200
+17:24:30 [27058] fc=136.4 g=1.00 bat=42 onda=1.02-1.68V estado=NORMAL
+17:24:33 [28058] fc=136.4 g=1.00 bat=44 onda=1.00-1.58V estado=NORMAL
+17:24:35 [29058] fc=136.4 g=1.00 bat=47 onda=1.04-1.79V estado=NORMAL
+17:24:36 [29229] lote 9: HTTP 200
+17:24:38 [30058] fc=136.4 g=1.00 bat=49 onda=1.06-1.76V estado=NORMAL
+17:24:40 [31058] fc=136.4 g=1.00 bat=51 onda=1.00-1.67V estado=NORMAL
+17:24:43 [32058] fc=136.4 g=1.00 bat=53 onda=0.98-1.59V estado=NORMAL
+17:24:43 [32229] lote 10: HTTP 200
+17:24:46 [33058] fc=136.4 g=1.00 bat=56 onda=1.03-1.80V estado=NORMAL
+17:24:48 [34058] fc=136.4 g=1.00 bat=58 onda=1.06-1.74V estado=NORMAL
+17:24:51 [35058] fc=136.4 g=1.00 bat=60 onda=1.01-1.68V estado=NORMAL
+17:24:51 [35229] estado (API): NORMAL -> ATENCAO
+17:24:51 [35229] lote 11: HTTP 200
+17:24:54 [36058] fc=136.4 g=1.00 bat=62 onda=0.98-1.59V estado=ATENCAO
+17:24:57 [37058] fc=136.4 g=1.00 bat=65 onda=1.04-1.78V estado=ATENCAO
+17:25:00 [38058] fc=136.4 g=1.00 bat=67 onda=1.06-1.74V estado=ATENCAO
+17:25:01 [38245] lote 12: HTTP 200
+17:25:04 [39058] fc=136.4 g=1.00 bat=69 onda=1.01-1.68V estado=ATENCAO
+17:25:07 [40058] fc=136.4 g=1.00 bat=71 onda=0.99-1.59V estado=ATENCAO
+>>> tecla 0 (17:25:09)
+17:25:10 [41058] fc=136.4 g=1.00 bat=74 onda=1.04-1.79V estado=ATENCAO
+17:25:10 [41245] lote 13: HTTP 200
+17:25:13 [42058] fc=136.4 g=1.00 bat=76 onda=1.05-1.83V estado=ATENCAO
+17:25:16 [43058] fc=125.0 g=1.00 bat=78 onda=1.05-1.78V estado=ATENCAO
+17:25:21 [44058] fc=125.0 g=1.00 bat=80 onda=1.07-1.77V estado=ATENCAO
+17:25:21 [44245] lote 14: HTTP 200
+17:25:24 [45058] fc=125.0 g=1.00 bat=82 onda=1.07-1.74V estado=ATENCAO
+17:25:28 [46058] fc=125.0 g=1.00 bat=84 onda=1.02-1.73V estado=ATENCAO
+17:25:32 [47058] fc=125.0 g=1.00 bat=86 onda=0.99-1.68V estado=ATENCAO
+17:25:32 [47245] lote 15: HTTP 200
+## Parte 2: cenarios 3 (dedo fora) e 4 (movimento)
