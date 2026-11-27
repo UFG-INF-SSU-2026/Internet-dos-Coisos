@@ -195,6 +195,10 @@ float lerAceleracaoG() {
 // corrigir a diferenca (resolucao de 1 s, bem dentro da janela).
 long ajusteRelogioS = 0;
 
+// Quando o NTP consegue sincronizar, o relogio ja esta certo: o ajuste pelo Date volta a zero
+// (senao os dois se somavam e o lote seguinte saia adiantado, com 401).
+void relogioSincronizado(struct timeval*) { ajusteRelogioS = 0; }
+
 void corrigirRelogio(const String& data) {   // "Thu, 27 Nov 2026 21:30:00 GMT"
   struct tm t = {};
   if (data.length() == 0 || !strptime(data.c_str(), "%a, %d %b %Y %H:%M:%S", &t)) return;
@@ -398,6 +402,7 @@ void setup() {
   // A assinatura leva o horario: sem NTP a API recusa as mensagens. Espera ate 10 s.
   // Re-sincroniza a cada 15 s: no Wokwi o relogio simulado atrasa quando a simulacao fica lenta.
   sntp_set_sync_interval(15000);
+  sntp_set_time_sync_notification_cb(relogioSincronizado);
   configTime(0, 0, "pool.ntp.org", "time.google.com");
   Serial.print("NTP");
   for (int i = 0; i < 40 && time(nullptr) < 1700000000; i++) { delay(250); Serial.print("."); }

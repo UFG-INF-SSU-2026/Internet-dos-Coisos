@@ -1,0 +1,35 @@
+# Depois do ensaio completo: ajuste do relogio zerado quando o NTP sincroniza (commit seguinte ao 2c77e3a)
+# 6 min com o ESP32 no Wokwi, cenario 1: HTTP 200 = 31, HTTP 401 = 0
+19:17:56 [5007] lote 1: HTTP 200
+19:18:06 [7997] lote 2: HTTP 200
+19:18:15 [10997] lote 3: HTTP 200
+19:18:24 [13997] lote 4: HTTP 200
+19:18:32 [16997] lote 5: HTTP 200
+19:18:42 [19997] lote 6: HTTP 200
+19:18:52 [23006] lote 7: HTTP 200
+19:19:02 [25980] lote 8: HTTP 200
+19:19:12 [28980] lote 9: HTTP 200
+19:19:24 [32003] lote 10: HTTP 200
+19:19:36 [34979] lote 11: HTTP 200
+19:19:48 [38003] lote 12: HTTP 200
+19:20:01 [41003] lote 13: HTTP 200
+19:20:14 [44036] lote 14: HTTP 200
+19:20:26 [46996] lote 15: HTTP 200
+19:20:40 [49995] lote 16: HTTP 200
+19:20:59 [52994] relogio corrigido pela API: +23 s
+19:20:59 [52996] lote 17: HTTP 200
+19:21:12 [55996] lote 18: HTTP 200
+19:21:25 [58977] relogio corrigido pela API: +43 s
+19:21:25 [58979] lote 19: HTTP 200
+19:21:39 [61979] lote 20: HTTP 200
+19:21:52 [64979] lote 21: HTTP 200
+19:22:03 [67979] lote 22: HTTP 200
+19:22:16 [70979] lote 23: HTTP 200
+19:22:28 [73988] lote 24: HTTP 200
+19:22:38 [76988] lote 25: HTTP 200
+19:22:48 [79978] lote 26: HTTP 200
+19:22:58 [82995] lote 27: HTTP 200
+19:23:12 [85995] lote 28: HTTP 200
+19:23:22 [88978] lote 29: HTTP 200
+19:23:31 [91995] lote 30: HTTP 200
+19:23:40 [94995] lote 31: HTTP 200

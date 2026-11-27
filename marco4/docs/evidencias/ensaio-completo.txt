@@ -1,0 +1,239 @@
+# Ensaio completo do Marco 4 - 27/11/2026 (horario de Brasilia)
+# Wokwi do VS Code (ESP32 + sensor de pulso) -> gateway local -> API (commit 2c77e3a) + TimescaleDB (Docker, timescale/timescaledb:latest-pg17)
+# App: APK do commit 2c77e3a (SHA-256 ef84dce2...cd7d) no emulador Android API 37, pela URL HTTPS de um tunel trycloudflare.com
+# Credenciais temporarias do ensaio; nenhuma senha, token ou DATABASE_URL neste arquivo.
+# Prints em docs/evidencias/app/completo/ (cNN-*.png, citados abaixo).
+
+## 1. Roteiro (app conduzido por adb, teclas do ESP32 pela serial RFC2217)
+19:02:00 === ensaio completo: https://watches-ooo-colleague-logos.trycloudflare.com ===
+19:02:17 print c01-login
+19:02:21 toque em 'https://'
+19:02:42 campo preenchido
+19:02:46 toque em 'Senha'
+19:02:56 tela: 'Paciente' após 5 s
+19:02:56 tecla '1' no ESP32
+19:02:59 tela: 'Tudo bem' após 3 s
+19:03:15 print c02-normal
+19:03:17 ok: dispositivo conectado
+19:04:07 tecla '2' no ESP32
+19:04:55 tela: 'Atenção' após 48 s
+19:04:56 print c03-atencao
+19:04:59 toque em 'Reconhecer alerta'
+19:05:12 tela: 'Alarme silenciado' após 13 s
+19:05:12 print c04-reconhecido
+19:05:15 ok: botão some depois do reconhecimento
+19:05:15 acelerômetro do emulador em movimento
+19:05:23 tela: 'Em movimento' após 8 s
+19:05:25 tela: 'Tudo bem' após 2 s
+19:05:26 print c05-movimento-celular
+19:05:26 acelerômetro parado
+19:05:47 tela: 'Atenção' após 21 s
+19:05:48 print c06-alerta-volta
+19:05:48 tecla '4' no ESP32
+19:06:09 tela: 'Tudo bem' após 21 s
+19:06:10 print c07-movimento-esp32
+19:07:29 tecla '2' no ESP32
+19:08:00 tela: 'Atenção' após 31 s
+19:08:50 tecla 'f' no ESP32
+19:09:20 tela: 'Sem leituras suficientes' após 30 s
+19:09:20 print c08-esp32-sem-rede
+19:10:21 tecla 'f' no ESP32
+19:10:51 tela: 'Atenção' após 30 s
+19:10:55 print c09-recuperado
+19:10:58 ok: alerta novo sem o comando anterior
+19:11:01 ok: botão de volta para o alerta novo
+19:11:32 tecla '1' no ESP32
+19:12:25 tela: 'Tudo bem' após 52 s
+19:12:25 print c10-normal-fim
+19:12:33 === fim da parte com a API no ar ===
+19:13:13 === 2.2 persistência: API reiniciada com outra APP_SECRET_KEY (mesmo banco) ===
+19:13:16 tela: 'Sessão expirou' após 3 s
+19:13:17 print c11-sessao-expirou
+text="https://watches-ooo-colleague-logos.trycloudflare.com"
+19:13:22 toque em 'Senha'
+19:13:26 senha digitada e confirmada
+19:13:30 tela: 'Paciente' após 4 s
+19:13:35 print c12-relogin
+{"servico":"online","versao":"4.0","banco_configurado":true,"banco_ativo":true,"gravacoes_nao_persistidas":0,"fila_pendentes":0}
+historico apos reinicio: origem TimescaleDB | 100 leituras de 22:13:33 a 22:06:16 UTC
+19:13:46 === 2.4: API parada (mesma APP_SECRET_KEY ao voltar) ===
+19:13:49 tela: 'Sem conexão' após 3 s
+19:13:50 print c13-api-parada
+19:13:58 API de volta com a mesma chave
+19:14:01 faixa de erro sumiu após 3 s
+19:14:01 ok: sem novo login (mesmo token)
+text="Sem leituras suficientes"
+19:14:02 print c14-api-voltou
+19:14:22 tela: 'Tudo bem' após 20 s
+19:14:26 print c14b-estado-reconstruido
+19:14:33 === 2.4: celular sem rede (Wi-Fi e dados desligados) ===
+19:14:36 tela: 'Sem conexão' após 3 s
+19:14:39 print c15-celular-sem-rede
+19:14:48 rede do celular religada
+19:14:51 app voltou a atualizar após 3 s, sem novo login
+19:14:52 print c16-rede-voltou
+19:15:04 === 2.3 segurança ===
+19:15:07 toque em 'Sair'
+19:15:10 tela: 'Entrar' após 3 s
+19:15:13 toque em 'Senha'
+19:15:16 senha digitada e confirmada
+19:15:19 tela: 'Usuário ou senha incorretos' após 3 s
+19:15:20 print c17-senha-errada
+19:15:24 toque em 'https://watches-ooo-colleague-logos.trycloudflare.com'
+19:15:38 toque em 'Senha'
+19:15:43 senha digitada e confirmada
+19:15:46 tela: 'Use a URL https' após 3 s
+19:15:47 print c18-http-recusado
+--- curl pelo túnel (19:15:47)
+token inválido -> 401
+token válido, paciente de outro cuidador (patient-9999) -> 403
+token válido, patient-0042 -> 200
+http:// no túnel -> 301 (redireciona para )
+certificado do túnel:
+http:// no túnel -> HTTP/1.1 301 Moved Permanently Location: https://watches-ooo-colleague-logos.trycloudflare.com/api/saude
+certificado validado pelo Python (cadeia + nome): TLSv1.3
+  sujeito: commonName=trycloudflare.com
+  emissor: countryName=US, organizationName=Google Trust Services, commonName=WE1
+  nomes: trycloudflare.com, *.trycloudflare.com
+  válido até: Jan  3 21:58:20 2027 GMT
+
+## 2. TimescaleDB
+### Antes de reiniciar a API (19:12:52). O banco acumula os ensaios do dia; as consultas de eventos e comandos mostram so este ensaio (desde 19:02).
+ hypertable_name 
+-----------------
+ comandos
+ eventos_estado
+ leituras
+(3 rows)
+
+ leituras | com_fc | fc_invalida | fc_min | fc_max 
+----------+--------+-------------+--------+--------
+      768 |    767 |           1 |   76.9 |  136.4
+(1 row)
+
+            hora            |       estado        |         razao         | fc_media 
+----------------------------+---------------------+-----------------------+----------
+ 2026-11-27 19:02:31.110029 | NORMAL              | janela_com_cobertura  |     78.7
+ 2026-11-27 19:04:50.297978 | ATENCAO             | condicao_persistiu    |    130.1
+ 2026-11-27 19:05:17.493191 | NORMAL              | movimento_no_celular  |    136.4
+ 2026-11-27 19:05:44.925686 | ATENCAO             | condicao_persistiu    |    136.4
+ 2026-11-27 19:06:07.483469 | NORMAL              | condicao_cessou       |    127.3
+ 2026-11-27 19:07:53.427197 | ATENCAO             | condicao_persistiu    |    117.6
+ 2026-11-27 19:09:15.227438 | DADOS_INSUFICIENTES | sem_leituras_recentes |    136.4
+ 2026-11-27 19:10:34.960793 | NORMAL              | janela_com_cobertura  |    136.4
+ 2026-11-27 19:10:45.32091  | ATENCAO             | condicao_persistiu    |    136.4
+ 2026-11-27 19:12:21.148165 | NORMAL              | condicao_cessou       |     86.9
+(10 rows)
+
+            hora            |  command_id  |  status   
+----------------------------+--------------+-----------
+ 2026-11-27 19:04:59.483515 | cmd-57bee09c | PENDENTE
+ 2026-11-27 19:05:08.332223 | cmd-57bee09c | ENTREGUE
+ 2026-11-27 19:05:08.738239 | cmd-57bee09c | EXECUTADO
+(3 rows)
+
+
+### Depois de reiniciar a API (19:13:36)
+ leituras |          ultima           
+----------+---------------------------
+      780 | 2026-11-27 19:13:33.27674
+(1 row)
+
+ estado |        razao         
+--------+----------------------
+ NORMAL | movimento_no_celular
+(1 row)
+
+  command_id  |  status   
+--------------+-----------
+ cmd-57bee09c | EXECUTADO
+(1 row)
+
+
+## 3. Serial do ESP32 (trechos: HTTP, comando, modo local, relogio)
+--- serial-1-190256.txt
+19:02:57 CENARIO: 1
+19:03:02 [515008] lote 171: HTTP 200
+19:03:13 [517998] lote 172: HTTP 200
+19:03:22 [520982] lote 173: HTTP 200
+19:03:30 [523988] lote 174: HTTP 200
+19:03:38 [526998] lote 175: HTTP 200
+19:03:47 [529981] lote 176: HTTP 200
+19:03:56 [532981] lote 177: HTTP 200
+19:04:04 [535997] lote 178: HTTP 200
+--- serial-1-191132.txt
+19:11:33 CENARIO: 1
+19:11:42 [664986] lote 221: HTTP 200
+19:11:55 [667986] lote 222: HTTP 200
+19:12:08 [670977] lote 223: HTTP 200
+19:12:21 [673977] estado (API): ATENCAO -> NORMAL
+19:12:21 [673977] lote 224: HTTP 200
+19:12:30 [676977] lote 225: HTTP 200
+--- serial-2-190407.txt
+19:04:08 CENARIO: 2
+19:04:13 [539088] lote 179: HTTP 200
+19:04:21 [542006] lote 180: HTTP 200
+19:04:31 [544977] relogio corrigido pela API: +0 s
+19:04:31 [544980] lote 181: HTTP 401 (descartado)
+19:04:40 [547996] lote 182: HTTP 200
+19:04:50 [551020] estado (API): NORMAL -> ATENCAO
+19:04:50 [551020] lote 183: HTTP 200
+19:05:04 [553994] relogio corrigido pela API: +24 s
+19:05:04 [553996] lote 184: HTTP 200
+19:05:08 [555195] comando cmd-57bee09c (RECONHECER_ALERTA): buzzer silenciado; ack HTTP 200
+19:05:15 [556996] lote 185: HTTP 200
+19:05:25 [559993] relogio corrigido pela API: +0 s
+19:05:25 [559996] estado (API): ATENCAO -> NORMAL
+--- serial-2-190729.txt
+19:07:30 CENARIO: 2
+19:07:32 [601984] lote 200: HTTP 200
+19:07:43 [604994] lote 201: HTTP 200
+19:07:53 [608020] estado (API): NORMAL -> ATENCAO
+19:07:53 [608020] lote 202: HTTP 200
+19:08:05 [610977] lote 203: HTTP 200
+19:08:15 [613977] lote 204: HTTP 200
+19:08:25 [616977] lote 205: HTTP 200
+19:08:36 [619977] lote 206: HTTP 200
+19:08:48 [622977] lote 207: HTTP 200
+--- serial-4-190548.txt
+19:05:49 CENARIO: 4
+19:05:56 [568995] lote 189: HTTP 200
+19:06:07 [571995] estado (API): ATENCAO -> NORMAL
+19:06:07 [571996] lote 190: HTTP 200
+19:06:16 [574993] relogio corrigido pela API: -1 s
+19:06:16 [574996] lote 191: HTTP 200
+19:06:24 [577995] lote 192: HTTP 200
+19:06:33 [580988] lote 193: HTTP 200
+19:06:41 [583978] lote 194: HTTP 200
+19:06:50 [586978] lote 195: HTTP 200
+19:06:58 [589992] relogio corrigido pela API: -1 s
+19:06:58 [589995] lote 196: HTTP 200
+19:07:06 [592985] lote 197: HTTP 200
+19:07:14 [595978] lote 198: HTTP 200
+--- serial-f-190850.txt
+19:09:00 [625813] lote 208: HTTP -1 (descartado)
+19:09:13 [628813] lote 209: HTTP -1 (descartado)
+19:09:23 MODO LOCAL: API sem responder; regra minima no ESP32
+19:09:26 [631809] fc=136.4 g=1.00 bat=1084 onda=1.06-1.72V estado=ATENCAO (MODO LOCAL)
+19:09:26 [631813] lote 210: HTTP -1 (descartado)
+19:09:31 [632809] fc=136.4 g=1.00 bat=1086 onda=1.00-1.64V estado=ATENCAO (MODO LOCAL)
+19:09:35 [633809] fc=136.4 g=1.00 bat=1089 onda=1.00-1.62V estado=ATENCAO (MODO LOCAL)
+19:09:39 [634809] fc=136.4 g=1.00 bat=1091 onda=1.05-1.76V estado=ATENCAO (MODO LOCAL)
+19:09:39 [634813] lote 211: HTTP -1 (descartado)
+19:09:44 [635809] fc=136.4 g=1.00 bat=1093 onda=1.05-1.70V estado=ATENCAO (MODO LOCAL)
+19:09:48 [636809] fc=136.4 g=1.00 bat=1095 onda=0.99-1.64V estado=ATENCAO (MODO LOCAL)
+19:09:52 [637809] fc=136.4 g=1.00 bat=1098 onda=1.00-1.62V estado=ATENCAO (MODO LOCAL)
+19:09:52 [637813] lote 212: HTTP -1 (descartado)
+19:09:57 [638809] fc=136.4 g=1.00 bat=1100 onda=1.05-1.77V estado=ATENCAO (MODO LOCAL)
+--- serial-f-191021.txt
+19:10:24 [644809] fc=136.4 g=1.00 bat=1113 onda=1.00-1.63V estado=ATENCAO (MODO LOCAL)
+19:10:25 [644940] relogio corrigido pela API: +34 s
+19:10:25 API respondeu: estado volta a vir da API
+19:10:35 [646977] estado (API): ATENCAO -> NORMAL
+19:10:35 [646978] lote 215: HTTP 200
+19:10:45 [650017] estado (API): NORMAL -> ATENCAO
+19:10:45 [650017] lote 216: HTTP 200
+19:10:56 [652986] lote 217: HTTP 200
+19:11:08 [655977] lote 218: HTTP 200
+19:11:19 [658986] lote 219: HTTP 200
+19:11:29 [661986] lote 220: HTTP 200
