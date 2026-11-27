@@ -5,12 +5,15 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -21,6 +24,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
@@ -42,7 +46,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextAlign
@@ -210,7 +216,20 @@ private fun Marca(tamanho: Int) {
     Box(
         Modifier.size(tamanho.dp).background(Marca, CircleShape),
         contentAlignment = Alignment.Center,
-    ) { Text("♥", color = Color.White, fontSize = (tamanho * 0.45).sp) }
+    ) {
+        // Coração desenhado: o caractere ♥ muda de forma (e de cor, como emoji) entre fontes.
+        Canvas(Modifier.size((tamanho * 0.5).dp)) {
+            val w = size.width; val h = size.height
+            drawPath(Path().apply {
+                moveTo(w * 0.5f, h * 0.9f)
+                cubicTo(w * 0.1f, h * 0.6f, -w * 0.05f, h * 0.25f, w * 0.25f, h * 0.12f)
+                cubicTo(w * 0.4f, h * 0.06f, w * 0.5f, h * 0.18f, w * 0.5f, h * 0.26f)
+                cubicTo(w * 0.5f, h * 0.18f, w * 0.6f, h * 0.06f, w * 0.75f, h * 0.12f)
+                cubicTo(w * 1.05f, h * 0.25f, w * 0.9f, h * 0.6f, w * 0.5f, h * 0.9f)
+                close()
+            }, Color.White)
+        }
+    }
 }
 
 @Composable
@@ -222,9 +241,9 @@ fun TelaLogin(vm: CuidadorViewModel) {
     Column(
         Modifier.fillMaxSize().padding(horizontal = 28.dp).verticalScroll(rememberScrollState()),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(14.dp, Alignment.CenterVertically),
+        verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
-        Spacer(Modifier.height(32.dp))
+        Spacer(Modifier.height(56.dp))
         Marca(72)
         Text("Coisos Cuidador", fontSize = 26.sp, fontWeight = FontWeight.Bold)
         Text("Acompanhe o paciente e responda aos alertas", color = Apagado, textAlign = TextAlign.Center)
@@ -236,7 +255,8 @@ fun TelaLogin(vm: CuidadorViewModel) {
             shape = forma, modifier = Modifier.fillMaxWidth())
         OutlinedTextField(senha, { senha = it }, label = { Text("Senha") }, singleLine = true,
             shape = forma, visualTransformation = PasswordVisualTransformation(),
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, imeAction = ImeAction.Done),
+            keyboardActions = KeyboardActions(onDone = { vm.entrar(url, usuario, senha) }),
             modifier = Modifier.fillMaxWidth())
         vm.erroLogin?.let { Text(it, color = MaterialTheme.colorScheme.error, textAlign = TextAlign.Center) }
         Button(onClick = { vm.entrar(url, usuario, senha) }, enabled = !vm.entrando, shape = forma,
@@ -276,10 +296,12 @@ fun TelaEstado(vm: CuidadorViewModel) {
             }
             r != null -> {
                 CartaoEstado(r)
-                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Info("Movimento", textoMovimento(r.movimento, r.fonteMovimento), null, Modifier.weight(1f))
+                Row(Modifier.height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    val fonte = when (r.fonteMovimento) { "celular" -> "medido pelo celular"; "esp32" -> "medido pelo ESP32"; else -> null }
+                    Info("Movimento", textoMovimento(r.movimento, r.fonteMovimento), fonte,
+                        Modifier.weight(1f).fillMaxHeight())
                     Info("Dispositivo", if (r.online) "Conectado" else "Sem contato",
-                        "última leitura ${horaLocal(r.ultimoContato)}", Modifier.weight(1f))
+                        "última leitura ${horaLocal(r.ultimoContato)}", Modifier.weight(1f).fillMaxHeight())
                 }
                 if (r.podeReconhecer) {
                     Button(onClick = vm::reconhecerAlerta, shape = RoundedCornerShape(16.dp),
