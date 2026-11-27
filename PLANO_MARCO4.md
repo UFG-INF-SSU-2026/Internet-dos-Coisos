@@ -26,7 +26,7 @@ Código em `marco4/mobile` (Kotlin + Compose). O passo a passo para compilar est
 - [x] Botão **Reconhecer alerta**
 - [x] Acelerômetro envia a intensidade do movimento a cada 2 s (é o segundo produtor)
 - [x] Só HTTPS (`usesCleartextTraffic=false`), e o Android valida o certificado do túnel
-- [ ] Abrir no Android Studio, sincronizar o Gradle e corrigir o que não compilar
+- [x] Build Gradle sincronizado e compilação validada pelo CI Android (PR #6; build debug).
 - [ ] Testar num celular real contra a URL do túnel Cloudflare
 - [x] Gerar o APK e salvar em `marco4/apk/coisos-cuidador.apk`
 - [x] Tirar prints das telas (login, estado NORMAL, ATENCAO, erro de rede) no emulador: `marco4/docs/evidencias/app/`
@@ -91,6 +91,14 @@ Código em `marco4/mobile` (Kotlin + Compose). O passo a passo para compilar est
 - [x] Ensaio do app no emulador no artigo (Seção 6.6, figura com 4 telas; artigo com 15 páginas, no limite)
 - [ ] Versão de 11/12: incluir os resultados do ensaio completo com o APK (celular real, Wokwi e banco), sem passar de 15 páginas
 
+
+
+### Complemento técnico em revisão (PR #6)
+
+- Painel Android ampliado com gráfico FC, cobertura, fila FIFO, persistência, histórico e ciclo de comando.
+- API reconstitui janela recente, última transição e estado do comando a partir do TimescaleDB na inicialização. O contexto momentâneo do celular e a fila FIFO não são restaurados, pois não são persistidos.
+- Adicionados teste instrumentado Compose, teste de reinício e integração contra TimescaleDB real. Marcar como concluídos apenas após o CI finalizar e revisão do grupo.
+
 ## Fim do dia: todos juntos
 
 - [ ] Ensaio do fluxo completo: banco → API → túnel → Wokwi → app → alerta → balançar o celular → reconhecer alerta
@@ -104,7 +112,7 @@ Código em `marco4/mobile` (Kotlin + Compose). O passo a passo para compilar est
 Vão para o README com impacto e justificativa, como o PDF permite.
 
 - [ ] TLS no ESP32
-- [ ] Teste de integração com TimescaleDB real no CI
+- [ ] Teste de integração com TimescaleDB real no CI (teste adicionado no PR #6; aguardando execução com serviço Docker).
 - [x] Testes de unidade do app na JVM (15, no CI com o APK como artefato)
-- [ ] Testes instrumentados de interface do app
-- [ ] Recuperar o estado e o comando pendente quando a API reinicia
+- [ ] Testes instrumentados de interface do app (implementados no PR #6; aguardando CI em emulador).
+- [ ] Recuperar o estado e o comando pendente quando a API reinicia (implementação e teste de reinício no PR #6; aguardando CI e revisão).
