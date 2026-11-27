@@ -1,6 +1,6 @@
 """Envia leituras DIDÁTICAS assinadas à API para testar sem Wokwi.
 
-Na raiz: py marco3/scripts/simular_sem_wokwi.py
+Na raiz: py marco4/scripts/simular_sem_wokwi.py
 Requer a API rodando e api/.env gerado. Não é substituto para testar o ESP32.
 """
 import argparse
@@ -50,7 +50,7 @@ def main():
     carregar_env_local()
     chave = os.getenv('DEVICE_API_KEY', '')
     if not chave:
-        print('[ERRO] Gere marco3/api/.env com gerar_config.py')
+        print('[ERRO] Gere marco4/api/.env com gerar_config.py')
         return 1
     dispositivo = os.getenv('DEVICE_ID', 'esp32-borda-01')
     paciente = os.getenv('PATIENT_ID', 'patient-0042')

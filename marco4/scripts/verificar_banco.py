@@ -1,7 +1,7 @@
 """Verifica acesso a TimescaleDB, hypertables e contagem sem exibir a senha.
 
-Na raiz: .\\.venv\\Scripts\\python.exe marco3\\scripts\\verificar_banco.py
-Requer DATABASE_URL em marco3/api/.env e psycopg[binary] instalado.
+Na raiz: .\\.venv\\Scripts\\python.exe marco4\\scripts\\verificar_banco.py
+Requer DATABASE_URL em marco4/api/.env e psycopg[binary] instalado.
 """
 
 import sys
@@ -16,7 +16,7 @@ def main():
     import os
     url = os.getenv('DATABASE_URL', '')
     if not url:
-        print('[ERRO] DATABASE_URL ausente de marco3/api/.env.')
+        print('[ERRO] DATABASE_URL ausente de marco4/api/.env.')
         return 1
     try:
         from armazenamento import Armazenamento

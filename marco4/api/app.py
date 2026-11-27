@@ -1,8 +1,10 @@
-"""Marco 3: API IoT do Internet dos Coisos (protótipo acadêmico).
+"""Marco 4: API IoT do Internet dos Coisos (protótipo acadêmico).
 
 Fluxo de leituras: ESP32 -> POST assinado -> fila FIFO -> regra.py
  -> armazenamento TimescaleDB (quando configurado) -> WebSocket -> painel.
-Ciclo de comando: cuidador -> API -> ESP32 -> ACK -> painel.
+Segundo produtor (Marco 4): app Android -> POST /api/app/leituras com token
+ -> mesma fila FIFO -> regra.py (mudança de contexto: paciente em movimento).
+Ciclo de comando: cuidador (painel ou app) -> API -> ESP32 -> ACK -> painel/app.
 
 Fila, comandos e estado atual estão em memória. O histórico no TimescaleDB
 é persistente quando DATABASE_URL está configurada e a conexão funciona.
@@ -24,6 +26,7 @@ from urllib.parse import parse_qs
 from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
+from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
 from starlette.middleware.sessions import SessionMiddleware
 import uvicorn
 
@@ -34,6 +37,9 @@ BASE = Path(__file__).resolve().parent
 ONLINE_S = 10          # sem contato do ESP32 por 10 s: "sem contato recente"
 MAX_LEITURAS = 10      # o ESP32 manda 3 por lote; folga para atrasos
 JANELA_ASSINATURA_S = 120  # mensagem assinada há mais de 120 s é recusada (anti-repetição)
+TOKEN_APP_VALIDADE_S = 8 * 3600  # token do app vale um turno de 8 h; depois, novo login
+APP_ATRASO_MAX_S = 10      # leitura do celular capturada há mais de 10 s é descartada
+APP_ADIANTADA_MAX_S = 5    # tolera relógio do celular até 5 s adiantado
 
 
 def carregar_env_local():
@@ -70,7 +76,7 @@ def create_app():
     chave = os.getenv('DEVICE_API_KEY', '')
     senha_hash = os.getenv('CUIDADOR_SENHA_HASH', '')
     if len(secret) < 32 or len(chave) < 24 or not senha_hash:
-        raise RuntimeError('Execute primeiro: python gerar_config.py em marco3/api')
+        raise RuntimeError('Execute primeiro: python gerar_config.py em marco4/api')
 
     # Vínculos de autorização: este ESP32 publica por este paciente,
     # e só este cuidador pode ver o paciente e mandar comando.
@@ -78,13 +84,16 @@ def create_app():
     patient_id = os.getenv('PATIENT_ID', 'patient-0042')
     cuidador = os.getenv('CUIDADOR_USUARIO', 'cuidador01')
 
-    app = FastAPI(title='Internet dos Coisos | Marco 3', version='3.3')
+    app = FastAPI(title='Internet dos Coisos | Marco 4', version='4.0')
     # Cookie assinado com APP_SECRET_KEY. SameSite=Lax: o navegador não envia o
     # cookie em POST vindo de outro site (por isso não usamos token CSRF).
     app.add_middleware(SessionMiddleware, secret_key=secret,
                        session_cookie='coisos_session', max_age=1800,
                        same_site='lax', https_only=os.getenv('COOKIE_SECURE', '0') == '1')
     templates = Jinja2Templates(directory=str(BASE / 'templates'))
+    # Token do app: assinado com APP_SECRET_KEY (o APK não guarda nenhuma chave).
+    # Leva quem é o cuidador e qual paciente ele pode ver; expira sozinho.
+    tokens = URLSafeTimedSerializer(secret, salt='coisos-app-token-v1')
 
     # Rotas async rodam uma por vez no mesmo laço de eventos: sem await no meio
     # das alterações, não é preciso Lock.
@@ -95,6 +104,10 @@ def create_app():
         'contato_em': None,
         'hora_contato': None,
         'comando': None,                     # um comando por vez (ciclo 2)
+        'app_ultima_ms': None,               # capturadoEmMs da última leitura aceita do celular
+        'app_hora': None,
+        'app_recebidas': 0,
+        'app_descartadas': 0,
     }
 
     # Incremento do Marco 3: fila produtor-consumidor (em memoria), historico e WebSocket.
@@ -123,6 +136,12 @@ def create_app():
             'historico': list(reversed(monitor.historico)),
             'lotesRecebidos': dados['lotes'],
             'comando': dados['comando'],
+            'celular': {
+                'ultimaLeituraUtc': dados['app_hora'],
+                'recebidas': dados['app_recebidas'],
+                'descartadas': dados['app_descartadas'],
+                'movimento': monitor.resumo.get('movimentoCelular'),
+            },
             'fila': {
                 'pendentes': pipeline['fila'].qsize() if pipeline['fila'] else 0,
                 'enfileirados': pipeline['recebidos'],
@@ -171,27 +190,35 @@ def create_app():
         # Consumidor unico: ordem FIFO. A resposta HTTP espera o processamento.
         while True:
             item = await fila.get()
-            lote_id, leituras, resposta_futura = item
+            origem, lote_id, leituras, resposta_futura = item
             try:
                 if atraso_demo_ms:
                     await asyncio.sleep(atraso_demo_ms / 1000)
-                transicao = monitor.adicionar(leituras, time.monotonic())
+                if origem == 'celular':
+                    # Aqui "leituras" é a intensidade do movimento (|a - 1 g|, em g).
+                    transicao = monitor.registrar_movimento_app(leituras, time.monotonic())
+                else:
+                    transicao = monitor.adicionar(leituras, time.monotonic())
                 if transicao:
                     transicao['horaUtc'] = agora_utc()
-                for leitura in leituras:
-                    graficos.append({'recebidoEmUtc': agora_utc(),
-                                     'fc': leitura.get('fc'), 'g': leitura.get('g')})
+                if origem == 'esp32':
+                    for leitura in leituras:
+                        graficos.append({'recebidoEmUtc': agora_utc(),
+                                         'fc': leitura.get('fc'), 'g': leitura.get('g')})
                 pipeline['processados'] += 1
-                ultimos_lotes.append({'loteId': lote_id, 'processadoEmUtc': agora_utc()})
+                ultimos_lotes.append({'loteId': lote_id, 'origem': origem,
+                                      'processadoEmUtc': agora_utc()})
                 # Persistencia opcional: nenhum problema no banco impede o alerta.
                 if temporal.configurado:
-                    await asyncio.to_thread(temporal.gravar_lote, device_id, patient_id,
-                                            lote_id, leituras, monitor.estado or 'SEM_DADOS')
+                    if origem == 'esp32':
+                        await asyncio.to_thread(temporal.gravar_lote, device_id, patient_id,
+                                                lote_id, leituras, monitor.estado or 'SEM_DADOS')
                     if transicao:
                         await asyncio.to_thread(temporal.gravar_transicao,
                                                 patient_id, dict(transicao))
                 if not resposta_futura.done():
-                    resposta_futura.set_result({'status': 'recebido', 'estado': monitor.estado})
+                    resposta_futura.set_result({'status': 'recebido', 'estado': monitor.estado,
+                                                'movimento': monitor.resumo.get('movimento')})
                 await publicar_evento()
             except Exception as exc:
                 if not resposta_futura.done():
@@ -215,6 +242,37 @@ def create_app():
     def cuidador_logado(request):
         """Autenticação do cuidador: a sessão diz quem fez login."""
         return request.session.get('usuario') == cuidador
+
+    def ler_token(request):
+        """Token Bearer do app: None se não veio; False se inválido/expirado; dict se válido."""
+        cabecalho = request.headers.get('Authorization', '')
+        if not cabecalho:
+            return None
+        tipo, _, token = cabecalho.partition(' ')
+        if tipo.lower() != 'bearer' or not token.strip():
+            return False
+        try:
+            conteudo = tokens.loads(token.strip(), max_age=TOKEN_APP_VALIDADE_S)
+        except (BadSignature, SignatureExpired):
+            return False
+        if not isinstance(conteudo, dict) or conteudo.get('u') != cuidador:
+            return False
+        return conteudo
+
+    def acesso_cuidador(request, codigo):
+        """Painel (sessão) ou app (token): devolve a resposta de erro, ou None se pode."""
+        token = ler_token(request)
+        if token is False:
+            return JSONResponse({'erro': 'Token invalido ou expirado'}, 401)
+        if token:
+            paciente = token.get('p')
+        elif cuidador_logado(request):
+            paciente = request.session.get('paciente')
+        else:
+            return JSONResponse({'erro': 'Faca login'}, 401)
+        if paciente != codigo:
+            return JSONResponse({'erro': 'Sem permissao para este paciente'}, 403)
+        return None
 
     def dispositivo_autenticado(request, corpo: bytes):
         """Autenticação do ESP32: assinatura HMAC-SHA256 da mensagem com a chave do dispositivo.
@@ -251,11 +309,71 @@ def create_app():
     @app.get('/api/saude', tags=['Diagnostico'])
     async def saude():
         # Util para testar localhost e o tunel sem credenciais e sem dados pessoais.
-        return {'servico': 'online', 'versao': '3.3',
+        return {'servico': 'online', 'versao': '4.0',
                 'banco_configurado': temporal.configurado,
                 'banco_ativo': temporal.ativo,
                 'gravacoes_nao_persistidas': temporal.descartadas,
                 'fila_pendentes': pipeline['fila'].qsize() if pipeline['fila'] else 0}
+
+    # ---------------- Marco 4: app Android (token Bearer, sem cookie) ----------------
+    @app.post('/api/app/login', tags=['App'])
+    async def app_login(request: Request):
+        corpo = ler_json(await request.body())
+        if corpo is None:
+            return JSONResponse({'erro': 'Envie {usuario, senha} em JSON'}, 400)
+        usuario, senha = corpo.get('usuario'), corpo.get('senha')
+        if (not isinstance(usuario, str) or not isinstance(senha, str)
+                or usuario != cuidador or not conferir_senha(senha, senha_hash)):
+            return JSONResponse({'erro': 'Usuario ou senha incorretos'}, 401)
+        return {'token': tokens.dumps({'u': cuidador, 'p': patient_id}),
+                'tipo': 'Bearer', 'expiraEmSegundos': TOKEN_APP_VALIDADE_S,
+                'paciente': patient_id}
+
+    @app.post('/api/app/leituras', tags=['App'])
+    async def app_leituras(request: Request):
+        token = ler_token(request)
+        if not token:
+            return JSONResponse({'erro': 'Token invalido ou ausente'}, 401)
+        corpo = ler_json(await request.body())
+        if corpo is None:
+            return JSONResponse({'erro': 'Envie um objeto JSON'}, 400)
+        if corpo.get('entityId') != token.get('p'):
+            return JSONResponse({'erro': 'Sem permissao para este paciente'}, 403)
+        intensidade, capturado = corpo.get('intensidade'), corpo.get('capturadoEmMs')
+        if (isinstance(intensidade, bool) or not isinstance(intensidade, (int, float))
+                or not 0 <= intensidade <= 8 or isinstance(capturado, bool)
+                or not isinstance(capturado, int)):
+            return JSONResponse(
+                {'erro': 'Esperado {entityId, intensidade (0 a 8 g), capturadoEmMs}'}, 400)
+
+        # Leitura atrasada ou fora de ordem não pode mudar o contexto atual.
+        agora_ms = int(time.time() * 1000)
+        motivo = None
+        if agora_ms - capturado > APP_ATRASO_MAX_S * 1000:
+            motivo = 'atrasada'
+        elif capturado - agora_ms > APP_ADIANTADA_MAX_S * 1000:
+            motivo = 'relogio_adiantado'
+        elif dados['app_ultima_ms'] is not None and capturado <= dados['app_ultima_ms']:
+            motivo = 'fora_de_ordem'
+        if motivo:
+            dados['app_descartadas'] += 1
+            return JSONResponse({'erro': 'Leitura descartada', 'motivo': motivo,
+                                 'atrasoMs': agora_ms - capturado}, 422)
+
+        fila = iniciar_consumidor()
+        try:
+            futuro = asyncio.get_running_loop().create_future()
+            fila.put_nowait(('celular', f'app-{capturado}', float(intensidade), futuro))
+        except asyncio.QueueFull:
+            return JSONResponse({'erro': 'Fila cheia, tente novamente'}, 503)
+        dados['app_ultima_ms'] = capturado
+        dados['app_hora'] = agora_utc()
+        dados['app_recebidas'] += 1
+        pipeline['recebidos'] += 1
+        try:
+            return await asyncio.wait_for(futuro, timeout=8)
+        except asyncio.TimeoutError:
+            return JSONResponse({'erro': 'Processamento excedeu o tempo limite; confira a fila'}, 503)
 
     # ---------------- login do cuidador ----------------
     @app.get('/', include_in_schema=False)
@@ -316,7 +434,7 @@ def create_app():
         fila = iniciar_consumidor()
         try:
             futuro = asyncio.get_running_loop().create_future()
-            fila.put_nowait((lote_id, leituras, futuro))
+            fila.put_nowait(('esp32', lote_id, leituras, futuro))
         except asyncio.QueueFull:
             return JSONResponse({'erro': 'Fila cheia, tente novamente'}, 503)
         dados['lotes_vistos'].append(lote_id)
@@ -331,10 +449,9 @@ def create_app():
 
     @app.get('/api/pacientes/{codigo}/estado', tags=['Cuidador'])
     async def estado(request: Request, codigo: str):
-        if not cuidador_logado(request):
-            return JSONResponse({'erro': 'Faca login'}, 401)
-        if request.session.get('paciente') != codigo:
-            return JSONResponse({'erro': 'Sem permissao para este paciente'}, 403)
+        negado = acesso_cuidador(request, codigo)
+        if negado:
+            return negado
         transicao = monitor.verificar_silencio(time.monotonic())
         if transicao:
             transicao['horaUtc'] = agora_utc()
@@ -345,10 +462,9 @@ def create_app():
 
     @app.get('/api/pacientes/{codigo}/historico', tags=['Cuidador'])
     async def historico_temporal(request: Request, codigo: str, limite: int = 100):
-        if not cuidador_logado(request):
-            return JSONResponse({'erro': 'Faca login'}, 401)
-        if request.session.get('paciente') != codigo:
-            return JSONResponse({'erro': 'Sem permissao para este paciente'}, 403)
+        negado = acesso_cuidador(request, codigo)
+        if negado:
+            return negado
         if temporal.configurado:
             registros = await asyncio.to_thread(temporal.consultar, codigo, limite)
             return {'origem': 'TimescaleDB' if temporal.ativo else 'indisponivel',
@@ -380,10 +496,9 @@ def create_app():
     # ---------------- ciclo 2: comando do cuidador e ack do ESP32 ----------------
     @app.post('/api/pacientes/{codigo}/comando', tags=['Cuidador'])
     async def criar_comando(request: Request, codigo: str):
-        if not cuidador_logado(request):
-            return JSONResponse({'erro': 'Faca login'}, 401)
-        if request.session.get('paciente') != codigo:
-            return JSONResponse({'erro': 'Sem permissao para este paciente'}, 403)
+        negado = acesso_cuidador(request, codigo)
+        if negado:
+            return negado
         if monitor.estado != 'ATENCAO':
             return JSONResponse({'erro': 'Nao ha alerta ativo para reconhecer'}, 409)
         c = dados['comando']
@@ -392,6 +507,7 @@ def create_app():
         dados['comando'] = {
             'commandId': 'cmd-' + secrets.token_hex(4), 'tipo': 'RECONHECER_ALERTA',
             'emitidoPor': cuidador, 'status': 'PENDENTE',
+            'canal': 'app' if request.headers.get('Authorization') else 'painel',
             'criadoEmUtc': agora_utc(), 'confirmadoEmUtc': None,
         }
         if temporal.configurado:
@@ -441,5 +557,5 @@ def create_app():
 
 
 if __name__ == '__main__':
-    print('Marco 3: abra http://127.0.0.1:5000/login')
+    print('Marco 4: abra http://127.0.0.1:5000/login')
     uvicorn.run(create_app(), host='127.0.0.1', port=5000)

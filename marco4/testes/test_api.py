@@ -1,4 +1,4 @@
-"""Testes da API (sem Wokwi): python -m unittest discover -s marco3/testes -v"""
+"""Testes da API (sem Wokwi): python -m unittest discover -s marco4/testes -v"""
 import hashlib
 import hmac
 import json

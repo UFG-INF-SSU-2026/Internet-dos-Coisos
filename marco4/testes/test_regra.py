@@ -1,4 +1,4 @@
-"""Testes da regra (sem HTTP, sem Wokwi): python -m unittest discover -s marco3/testes -v"""
+"""Testes da regra (sem HTTP, sem Wokwi): python -m unittest discover -s marco4/testes -v"""
 import sys
 import unittest
 from pathlib import Path

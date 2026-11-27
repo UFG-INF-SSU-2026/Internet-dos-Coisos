@@ -1,4 +1,4 @@
-"""Marco 3: regra de análise das leituras (portada do sketch.ino do Marco 2).
+"""Marco 4: regra de análise das leituras (portada do sketch.ino do Marco 2).
 
 Só a análise: nada de HTTP, login ou chave aqui. Recebe leituras e o instante
 (em segundos, relógio do servidor) e decide o estado do paciente.
@@ -19,6 +19,10 @@ AVALIACOES_PARA_ENTRAR = 2  # a condição precisa persistir em 2 avaliações s
 FC_MIN, FC_MAX = 30.0, 220.0
 G_REST_TOLERANCIA = 0.15    # |aceleração - 1 g| até 0,15 g = repouso
 G_MAX = 8.0
+# Marco 4: o celular do paciente é o segundo produtor (acelerômetro).
+# Se ele relatou movimento nos últimos MOV_APP_VALIDO_S segundos, esse contexto
+# prevalece sobre o MPU6050: paciente em movimento, alerta de FC alta suprimido.
+MOV_APP_VALIDO_S = 6
 
 
 def fc_valida(fc):
@@ -47,6 +51,7 @@ class Monitor:
         self.transicoes = 0
         self.resumo = {}
         self.historico = deque(maxlen=20)
+        self.mov_app = None          # (movimento, instante) da última leitura do celular
 
     def adicionar(self, leituras, agora):
         """Guarda as leituras do lote e reavalia o estado."""
@@ -55,21 +60,42 @@ class Monitor:
         self.ultimo_lote_em = agora
         return self.avaliar(agora)
 
-    def calcular(self):
+    def registrar_movimento_app(self, intensidade, agora):
+        """Leitura do celular: intensidade = |aceleração - 1 g|, em g.
+
+        Só reavalia se o ESP32 já mandou leituras; sem FC não há o que suprimir.
+        """
+        mov = 'REST' if intensidade <= G_REST_TOLERANCIA else 'ACTIVE'
+        self.mov_app = (mov, agora)
+        if self.ultimo_lote_em is None:
+            return None
+        return self.avaliar(agora)
+
+    def calcular(self, agora=None):
         """Média, movimento predominante e cobertura das janelas."""
         fcs = [fc for fc, _ in self.amostras if fc is not None]
         movs = [m for _, m in list(self.amostras)[-JANELA_MOV:] if m != 'INVALIDO']
         repouso = movs.count('REST') >= movs.count('ACTIVE')
+        movimento_borda = 'INVALIDO' if not movs else ('REST' if repouso else 'ACTIVE')
+        movimento_final, fonte = movimento_borda, 'esp32'
+        if (self.mov_app and agora is not None
+                and agora - self.mov_app[1] <= MOV_APP_VALIDO_S
+                and self.mov_app[0] == 'ACTIVE'):
+            movimento_final, fonte = 'ACTIVE', 'celular'   # mudança de contexto
         return {
             'fcMedia': round(sum(fcs) / len(fcs), 1) if fcs else None,
-            'movimento': 'INVALIDO' if not movs else ('REST' if repouso else 'ACTIVE'),
+            'movimento': movimento_final,
+            'fonteMovimento': fonte,
+            'movimentoEsp32': movimento_borda,
+            'movimentoCelular': (self.mov_app[0] if self.mov_app and agora is not None
+                                 and agora - self.mov_app[1] <= MOV_APP_VALIDO_S else None),
             'coberturaFc': round(len(fcs) / JANELA_FC, 2),
             'coberturaMov': round(len(movs) / JANELA_MOV, 2),
         }
 
     def avaliar(self, agora):
         """Aplica a regra; devolve o evento de transição ou None se o estado não mudou."""
-        r = self.resumo = self.calcular()
+        r = self.resumo = self.calcular(agora)
         if r['coberturaFc'] < COBERTURA_MINIMA or r['coberturaMov'] < COBERTURA_MINIMA:
             self.persistencia = 0
             return self._transitar('DADOS_INSUFICIENTES', 'cobertura_insuficiente', agora)
@@ -79,7 +105,9 @@ class Monitor:
             mantida = r['fcMedia'] > FC_LIMIAR_SAIDA and repouso
             if not mantida and self._tempo_minimo(agora):
                 self.persistencia = 0
-                return self._transitar('NORMAL', 'condicao_cessou', agora)
+                razao = ('movimento_no_celular' if r['fonteMovimento'] == 'celular'
+                         else 'condicao_cessou')
+                return self._transitar('NORMAL', razao, agora)
             return None
 
         condicao = r['fcMedia'] > FC_LIMIAR_ENTRADA and repouso
