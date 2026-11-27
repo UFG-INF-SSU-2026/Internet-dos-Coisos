@@ -78,14 +78,16 @@ Código em `marco4/mobile` (Kotlin + Compose). O passo a passo para compilar est
 
 ## Trilha D: artigo de 10 a 15 páginas
 
-- [ ] Estrutura e template definidos
-- [ ] Introdução e fundamentação (a partir de `decisoes.md` e do README do Marco 3)
-- [ ] Arquitetura (a partir de `DIAGRAMAS_E_GRAFICOS.md`), com os dois produtores e a fila
-- [ ] Implementação: ESP32, API, banco temporal, app
-- [ ] Segurança: HMAC no dispositivo, sessão e token, autorização por paciente
-- [ ] Avaliação: resultados dos testes e do CI (no fim da tarde)
-- [ ] Limitações e trabalhos futuros (ver pendências abaixo)
-- [ ] Revisão final e PDF em `marco4/docs/`
+- [x] Estrutura e template definidos (LaTeX, layout no estilo SBC, 14 páginas)
+- [x] Introdução e fundamentação, com 15 referências
+- [x] Arquitetura com os dois produtores e a fila (Figura 1) e diagrama de estados (Figura 2)
+- [x] Implementação: ESP32, API, regra, validade, banco temporal, segurança, app
+- [x] Segurança: HMAC no dispositivo, sessão e token, autorização por paciente
+- [x] Avaliação: testes, CI e medições de `scripts/avaliar.py`, incluindo o defeito encontrado e corrigido
+- [x] Limitações e trabalhos futuros
+- [x] PDF em `marco4/docs/artigo.pdf`
+- [ ] Revisão do grupo (texto, autores, eventuais e-mails)
+- [ ] Versão de 11/12: incluir os resultados do ensaio completo com o APK
 
 ## Fim do dia: todos juntos
 

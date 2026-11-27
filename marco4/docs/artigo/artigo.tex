@@ -6,7 +6,7 @@
 \usepackage[a4paper,top=3cm,bottom=2cm,left=3cm,right=2cm]{geometry}
 \usepackage{booktabs,tabularx,array,graphicx,caption,xcolor,enumitem,amsmath}
 \usepackage{tikz}
-\Setikzlibrary{positioning,arrows.meta,fit,automata,calc}
+\usetikzlibrary{positioning,arrows.meta,fit,automata,calc}
 \usepackage[hidelinks]{hyperref}
 \usepackage{listings}
 
@@ -278,13 +278,13 @@ Atraso máximo / adiantamento & 10 s / 5 s & Leitura do celular fora disso: 422 
   estado/.style={draw, rounded corners=4pt, minimum width=3.4cm, minimum height=9mm, align=center},
   seta/.style={-{Stealth[length=2mm]}, thick}, rot/.style={font=\scriptsize, align=center}]
   \node[estado, fill=gray!12] (di) {DADOS\_INSUFICIENTES};
-  \node[estado, fill=green!12, below left=1.6cm and 0.4cm of di] (n) {NORMAL};
-  \node[estado, fill=red!12, below right=1.6cm and 0.4cm of di] (a) {ATENCAO};
-  \draw[seta] (di) -- node[rot, left=4pt]{cobertura $\ge$ 70\%} (n);
+  \node[estado, fill=green!12, below left=2.4cm and 0.4cm of di] (n) {NORMAL};
+  \node[estado, fill=red!12, below right=2.4cm and 0.4cm of di] (a) {ATENCAO};
+  \draw[seta] (di.south west) -- node[rot, right=3pt, pos=0.4]{cobertura\\$\ge$ 70\%} (n.north east);
   \draw[seta] ([yshift=2mm]n.east) -- node[rot, above]{média $>$ 100 bpm, em repouso,\\2 lotes seguidos, $\ge$ 4 s} ([yshift=2mm]a.west);
   \draw[seta] ([yshift=-2mm]a.west) -- node[rot, below]{média $\le$ 92 bpm \textbf{ou} em movimento\\(ESP32 ou celular), $\ge$ 4 s} ([yshift=-2mm]n.west -| n.east);
   \draw[seta] (a) -- node[rot, right=4pt]{cobertura $<$ 70\%\\ou 8 s sem lote} (di);
-  \draw[seta] (n.north) to[bend left=20] node[rot, left=2pt]{8 s sem lote} (di.west);
+  \draw[seta] ([xshift=-8mm]n.north) to[bend left=35] node[rot, left=3pt]{8 s sem lote} (di.west);
 \end{tikzpicture}
 \caption{Estados do paciente. A transição de ATENCAO para NORMAL causada pelo celular é registrada com a razão \texttt{movimento\_no\_celular}.}\label{fig:estados}
 \end{figure}
