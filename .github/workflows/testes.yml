@@ -75,10 +75,10 @@ jobs:
           distribution: temurin
           java-version: "21"
 
+      # O padrão da action instala o pacote "tools", que não existe mais no SDK.
       - uses: android-actions/setup-android@v3
-
-      - name: SDK Platform 37
-        run: sdkmanager "platforms;android-37.0" "build-tools;36.0.0"
+        with:
+          packages: "platform-tools platforms;android-37.0 build-tools;36.0.0"
 
       - uses: gradle/actions/setup-gradle@v4
 
