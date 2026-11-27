@@ -145,9 +145,37 @@ class ApresentacaoTest {
             {"estado":"ATENCAO","ultimoContatoUtc":"2026-11-27T18:19:27.5+00:00",
              "resumo":{"fcMedia":119.6},"comando":{"commandId":"c","status":"ENTREGUE"}}"""))
         assertEquals("120", r.fcBpm)
-        assertEquals("ENTREGUE", r.statusComando)
+        assertNull(r.statusComando)              // sem horário de criação: não é deste alerta
         assertEquals("15:19:27", horaLocal(r.ultimoContato, java.time.ZoneOffset.ofHours(-3)))
         assertEquals("—", horaLocal("—"))
         assertEquals("—", Resumo.de(JSONObject("{}")).fcBpm)
     }
+}
+
+class ComandoDoAlertaTest {
+    private fun estado(inicio: String, criado: String?, status: String = "EXECUTADO") = Resumo.de(JSONObject("""
+        {"estado":"ATENCAO","historico":[{"estado":"ATENCAO","horaUtc":"$inicio"}],
+         "comando":${if (criado == null) "null" else """{"commandId":"c","status":"$status","criadoEmUtc":"$criado"}"""}}"""))
+
+    @Test fun reconhecido_neste_alerta_esconde_o_botao_e_mostra_o_status() {
+        val r = estado("2026-11-27T21:50:08+00:00", "2026-11-27T21:50:18+00:00")
+        assertFalse(r.podeReconhecer)
+        assertEquals("EXECUTADO", r.statusComando)
+    }
+
+    @Test fun comando_de_um_alerta_anterior_nao_aparece() {
+        // defeito achado no ensaio completo: o alerta novo mostrava "Alarme silenciado"
+        val r = estado("2026-11-27T21:56:16+00:00", "2026-11-27T21:50:18+00:00")
+        assertTrue(r.podeReconhecer)
+        assertNull(r.statusComando)
+    }
+
+    @Test fun pendente_neste_alerta_tambem_esconde_o_botao() {
+        val r = estado("2026-11-27T21:50:08+00:00", "2026-11-27T21:50:18+00:00", "PENDENTE")
+        assertFalse(r.podeReconhecer)
+        assertEquals("PENDENTE", r.statusComando)
+    }
+
+    @Test fun sem_comando_pode_reconhecer() =
+        assertTrue(estado("2026-11-27T21:50:08+00:00", null).podeReconhecer)
 }

@@ -54,14 +54,20 @@ data class Resumo(
     val comando: String?,
     val fcBpm: String = "—",
     val statusComando: String? = null,
+    /** O último comando foi emitido depois do início do estado atual (é deste alerta). */
+    val comandoDesteAlerta: Boolean = false,
 ) {
-    /** O botão "Reconhecer alerta" só faz sentido com alerta ativo. */
-    val podeReconhecer: Boolean get() = estado == "ATENCAO"
+    /** O botão "Reconhecer alerta" só faz sentido com alerta ativo ainda não reconhecido. */
+    val podeReconhecer: Boolean get() = estado == "ATENCAO" && !comandoDesteAlerta
 
     companion object {
         fun de(j: JSONObject): Resumo {
             val r = j.optJSONObject("resumo") ?: JSONObject()
             val c = j.optJSONObject("comando")
+            // historico vem do mais recente para o mais antigo: o primeiro é o início do estado atual
+            val inicio = j.optJSONArray("historico")?.optJSONObject(0)?.let { instante(it.texto("horaUtc")) }
+            val criado = c?.let { instante(it.texto("criadoEmUtc")) }
+            val desteAlerta = criado != null && (inicio == null || !criado.isBefore(inicio))
             return Resumo(
                 estado = j.texto("estado", "SEM_DADOS"),
                 fcMedia = if (r.isNull("fcMedia")) "—" else "${r.optDouble("fcMedia")} bpm",
@@ -72,7 +78,8 @@ data class Resumo(
                 comando = c?.let { "${it.texto("commandId")}: ${it.texto("status")}" },
                 fcBpm = if (r.isNull("fcMedia") || !r.has("fcMedia")) "—"
                         else r.optDouble("fcMedia").roundToInt().toString(),
-                statusComando = c?.let { if (it.isNull("status")) null else it.optString("status") },
+                statusComando = if (desteAlerta) c?.texto("status", "")?.ifEmpty { null } else null,
+                comandoDesteAlerta = desteAlerta,
             )
         }
     }
@@ -105,6 +112,10 @@ fun textoComando(status: String?): String? = when (status) {
     "EXECUTADO" -> "Alarme silenciado no dispositivo"
     else -> status
 }
+
+/** Instante de um horário ISO da API, ou null se ausente ou inválido. */
+fun instante(iso: String): java.time.Instant? =
+    try { OffsetDateTime.parse(iso).toInstant() } catch (e: Exception) { null }
 
 /** Horário ISO da API (UTC) no fuso do celular, como HH:mm:ss; "—" se não houver. */
 fun horaLocal(iso: String, fuso: ZoneId = ZoneId.systemDefault()): String = try {
