@@ -572,7 +572,7 @@ Os trabalhos futuros, previstos para a entrega final, são:
   \item TLS no dispositivo;
   \item teste de integração com o TimescaleDB real no CI;
   \item testes instrumentados do aplicativo;
-  \item reconstrução do estado e do comando pendente a partir do banco depois de reiniciar a API;
+  \item validação da recuperação de estado e comando pendente após reinício, incluindo limites da fila volátil;
   \item registro dos resultados do ensaio completo com o APK.
 \end{itemize}
 
@@ -581,6 +581,7 @@ O assistente Claude Code (modelo Claude Opus 5.5) foi usado no Marco 4 para plan
 O grupo revisou o material.
 A validação foi feita pelos testes automatizados, pelas medições reprodutíveis e pelo ensaio do sistema completo.
 O defeito da Seção~6.3 foi identificado a partir dessas medições.
+Durante o Marco 4, ChatGPT (GPT-6) também foi utilizado para ampliar o painel Android nativo, integrar a consulta ao histórico, implementar a recuperação do snapshot persistido, preparar testes e atualizar a integração contínua. O grupo deve revisar essas alterações e validar os resultados antes da versão final.
 O grupo é responsável por compreender, testar e explicar o conteúdo entregue.
 
 \begin{thebibliography}{99}\small
