@@ -1,0 +1,61 @@
+# Execucao da suite da API - 2026-11-27 14:14 -0300
+# commit 395c8e1 | Python 3.14.4 | Windows 11
+# comando (em marco4/testes): python -m pytest -v -p no:cacheprovider test_regra.py test_api.py test_melhorias.py test_consolidacao.py test_app_mobile.py
+
+============================= test session starts =============================
+platform win32 -- Python 3.14.4, pytest-9.2.0, pluggy-1.7.0 -- <venv>\Scripts\python.exe
+rootdir: C:\projetos\Internet-dos-Coisos\marco4\testes
+plugins: anyio-4.16.0
+collecting ... collected 42 items
+
+test_regra.py::TestarRegra::test_classificacao_das_leituras PASSED       [  2%]
+test_regra.py::TestarRegra::test_fc_alta_em_repouso_precisa_persistir PASSED [  4%]
+test_regra.py::TestarRegra::test_histerese_na_saida PASSED               [  7%]
+test_regra.py::TestarRegra::test_movimento_ativo_nao_gera_alerta PASSED  [  9%]
+test_regra.py::TestarRegra::test_poucos_dados_e_depois_normal PASSED     [ 11%]
+test_regra.py::TestarRegra::test_sensor_ausente PASSED                   [ 14%]
+test_regra.py::TestarRegra::test_silencio_vira_dados_insuficientes PASSED [ 16%]
+test_api.py::TestarApi::test_assinatura_do_dispositivo PASSED            [ 19%]
+test_api.py::TestarApi::test_ciclo1_leituras_viram_estado_no_painel PASSED [ 21%]
+test_api.py::TestarApi::test_ciclo1_silencio_vira_dados_insuficientes PASSED [ 23%]
+test_api.py::TestarApi::test_ciclo2_comando_e_ack PASSED                 [ 26%]
+test_api.py::TestarApi::test_ciclo2_quem_pode_o_que PASSED               [ 28%]
+test_api.py::TestarApi::test_corpo_alterado_invalida_assinatura PASSED   [ 30%]
+test_api.py::TestarApi::test_cuidador_nao_ve_outro_paciente PASSED       [ 33%]
+test_api.py::TestarApi::test_dispositivo_nao_vinculado PASSED            [ 35%]
+test_api.py::TestarApi::test_login_errado_certo_e_logout PASSED          [ 38%]
+test_api.py::TestarApi::test_lote_invalido PASSED                        [ 40%]
+test_api.py::TestarApi::test_mensagem_antiga_recusada PASSED             [ 42%]
+test_api.py::TestarApi::test_sem_login_nao_ve_paciente PASSED            [ 45%]
+test_melhorias.py::TestarMelhorias::test_endpoint_saude_sem_dados_pessoais PASSED [ 47%]
+test_melhorias.py::TestarMelhorias::test_fila_evidencia_ordem_e_contadores PASSED [ 50%]
+test_melhorias.py::TestarMelhorias::test_fila_processa_e_preserva_estado PASSED [ 52%]
+test_melhorias.py::TestarMelhorias::test_historico_protegido PASSED      [ 54%]
+test_melhorias.py::TestarMelhorias::test_websocket_envia_estado_ao_receber_leituras PASSED [ 57%]
+test_melhorias.py::TestarMelhorias::test_websocket_precisa_sessao PASSED [ 59%]
+test_consolidacao.py::TestarPersistenciaIntegrada::test_grava_atuacoes_no_segundo_ciclo PASSED [ 61%]
+test_consolidacao.py::TestarPersistenciaIntegrada::test_grava_leituras_transicoes_e_retorna_historico PASSED [ 64%]
+test_consolidacao.py::TestarCredenciaisPrivadas::test_gera_config_e_preserva_em_segunda_execucao PASSED [ 66%]
+test_consolidacao.py::TestarCredenciaisPrivadas::test_recria_config_esp32_quando_env_ja_existe PASSED [ 69%]
+test_app_mobile.py::TestarAppMobile::test_app_reconhece_alerta_com_token PASSED [ 71%]
+test_app_mobile.py::TestarAppMobile::test_celular_parado_mantem_alerta_e_balancar_encerra PASSED [ 73%]
+test_app_mobile.py::TestarAppMobile::test_contexto_do_celular_expira PASSED [ 76%]
+test_app_mobile.py::TestarAppMobile::test_leitura_do_celular_atrasada_e_rejeitada PASSED [ 78%]
+test_app_mobile.py::TestarAppMobile::test_leitura_do_celular_invalida_400 PASSED [ 80%]
+test_app_mobile.py::TestarAppMobile::test_leituras_do_celular_passam_pela_fila PASSED [ 83%]
+test_app_mobile.py::TestarAppMobile::test_login_app_devolve_token_e_senha_errada_401 PASSED [ 85%]
+test_app_mobile.py::TestarAppMobile::test_movimento_do_celular_suprime_alerta PASSED [ 88%]
+test_app_mobile.py::TestarAppMobile::test_token_de_outro_paciente_403 PASSED [ 90%]
+test_app_mobile.py::TestarAppMobile::test_token_expirado_401 PASSED      [ 92%]
+test_app_mobile.py::TestarAppMobile::test_token_invalido_401 
+test_app_mobile.py::TestarAppMobile::test_token_invalido_401 PASSED      [ 95%]
+test_app_mobile.py::TestarRegraContexto::test_contexto_vale_por_poucos_segundos PASSED [ 97%]
+test_app_mobile.py::TestarRegraContexto::test_movimento_do_celular_sem_leituras_do_esp32_nao_muda_estado PASSED [100%]
+
+============================== warnings summary ===============================
+..\..\..\..\Users\Matheus\AppData\Local\Temp\claude\4646427adb010163\1b634a1d-cb05-45bc-8686-504c43a40d92\scratchpad\venv\Lib\site-packages\fastapi\testclient.py:1
+  <venv>\Lib\site-packages\fastapi\testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient as TestClient  # noqa
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+============== 42 passed, 1 warning, 4 subtests passed in 6.03s ===============
