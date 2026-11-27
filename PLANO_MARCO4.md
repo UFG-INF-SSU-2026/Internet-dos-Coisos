@@ -28,8 +28,9 @@ Código em `marco4/mobile` (Kotlin + Compose). O passo a passo para compilar est
 - [x] Só HTTPS (`usesCleartextTraffic=false`), e o Android valida o certificado do túnel
 - [ ] Abrir no Android Studio, sincronizar o Gradle e corrigir o que não compilar
 - [ ] Testar num celular real contra a URL do túnel Cloudflare
-- [ ] Gerar o APK e salvar em `marco4/apk/coisos-cuidador.apk`
-- [ ] Tirar prints das telas (login, estado NORMAL, ATENCAO, erro de rede) para o README e o artigo
+- [x] Gerar o APK e salvar em `marco4/apk/coisos-cuidador.apk`
+- [x] Tirar prints das telas (login, estado NORMAL, ATENCAO, erro de rede) no emulador: `marco4/docs/evidencias/app/`
+- [ ] Testar o APK no celular real (acelerômetro físico) junto com o Wokwi
 
 ## Trilha B: API, testes e CI ✅ (PR #3, merge `6f1a443`)
 
@@ -55,7 +56,7 @@ Código em `marco4/mobile` (Kotlin + Compose). O passo a passo para compilar est
   - [x] A tabela de feedback (seção 0)
   - [x] Link do relatório JUnit do CI
   - [x] README da raiz aponta para o Marco 4
-  - [ ] Atualizar a situação dos itens 1 (APK) e 5 (artigo) quando ficarem prontos
+  - [x] Atualizar a situação dos itens 1 (APK) e 5 (artigo) quando ficarem prontos
 - [x] `marco4/docs/implantacao.md`
   - [x] Versões (Python, FastAPI, TimescaleDB, cloudflared, Android)
   - [x] Ordem de execução: banco → API → túnel → Wokwi → app

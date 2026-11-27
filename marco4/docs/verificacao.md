@@ -60,6 +60,36 @@ Na coluna **Registro**, anote o resultado observado e o trecho do vídeo, print 
 
 Versão ensaiada: commit `________`, APK `coisos-cuidador.apk` (SHA-256 `________`), Android `____`, data `__/__/2026`.
 
+### 2.0 Ensaio preliminar no emulador (27/11/2026)
+
+Antes do ensaio com o celular, o APK foi testado no emulador do Android Studio (Medium Phone, Android API 37, 1080×2400).
+- **API:** a versão deste commit, com credenciais temporárias e **sem banco**, exposta por um túnel `trycloudflare.com` real (HTTPS).
+- **ESP32:** substituído por um script que envia lotes assinados com HMAC a cada 3 s (FC 120 bpm, `g = 1.0`), busca o comando e devolve o ACK. Log em [`evidencias/ensaio-emulador-esp32-sim.txt`](evidencias/ensaio-emulador-esp32-sim.txt).
+- **Movimento:** simulado com `adb emu sensor set acceleration`.
+- **Prints:** estão em [`evidencias/app/`](evidencias/app/).
+
+Este ensaio **não substitui** os itens 2.1 a 2.4 com celular real, Wokwi e TimescaleDB.
+
+| Verificação | Observado | Evidência |
+|---|---|---|
+| Tela de login | Campos URL, usuário e senha; senha mascarada | `01-login.png` |
+| Senha errada pelo túnel HTTPS | "Usuário ou senha incorretos" | `03-senha-errada.png` |
+| URL com `http://` | Recusada antes de qualquer requisição: "Use a URL https:// do túnel" | `11-http-recusado.png` |
+| Login correto, sem ESP32 | `SEM_DADOS`, "ESP32 sem contato recente", botão desativado | `04-sem-dados.png` |
+| FC 120 em repouso | `ATENCAO` cerca de 15 s depois do início dos lotes; "ESP32 online"; botão ativo | `05-atencao.png` |
+| Tocar **Reconhecer alerta** | No lote seguinte, o ESP32 simulado recebeu `cmd-735a593a` e respondeu ACK; o app mostrou `EXECUTADO` | `06-reconhecido.png`, linha 15:19:45 do log |
+| Balançar o celular (0,83 g) | `NORMAL`, `Movimento: ACTIVE (fonte: celular)`, botão desativado; no log, a passagem de `ATENCAO` para `NORMAL` acontece entre dois lotes (3 s) | `07-contexto-movimento.png` |
+| Parar de balançar | `ATENCAO` de volta com `fonte: esp32` | `08-alerta-volta.png` |
+| Wi-Fi e dados desligados no emulador | "Erro de rede … Mostrando o último estado recebido"; envio do acelerômetro falha; nenhum travamento | `09-sem-rede.png` |
+| Rede religada | Atualização volta sozinha, sem novo login | `10-rede-voltou.png` |
+| ESP32 simulado encerrado | `DADOS_INSUFICIENTES` e "ESP32 sem contato recente"; campos vazios aparecem como "—" | `12-apos-correcao.png` |
+
+**Defeitos encontrados e corrigidos no app:**
+- `optString` do `org.json` devolvia o texto `"null"` para campos JSON nulos, e a tela mostrava "Último contato: null" e "enviado (null)". Uma função `texto()` passou a trocar o nulo por "—".
+- A linha abaixo do botão mostrava "Comando … PENDENTE" para sempre, enquanto o cartão já dizia `EXECUTADO`. Agora ela mostra "Reconhecimento enviado (…). Acompanhe o status no cartão", e o status real fica só no cartão.
+
+Os prints 01 a 11 são da versão anterior à correção, e o 12 é da versão corrigida. O APK em `apk/` é o corrigido.
+
 ### 2.1 Fluxo e contexto
 
 | Passo | Resultado esperado | Registro |

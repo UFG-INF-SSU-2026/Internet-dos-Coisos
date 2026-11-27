@@ -47,6 +47,10 @@ import org.json.JSONObject
 
 private const val INTERVALO_MS = 2_000L   // estado e movimento a cada 2 s
 
+/** optString devolve o texto "null" para JSON null; aqui vira o valor padrão. */
+private fun JSONObject.texto(chave: String, padrao: String = "—"): String =
+    if (isNull(chave)) padrao else optString(chave, padrao)
+
 /** O que a tela de estado mostra, extraído da resposta de /estado. */
 data class Resumo(
     val estado: String,
@@ -62,12 +66,12 @@ data class Resumo(
             val r = j.optJSONObject("resumo") ?: JSONObject()
             val c = j.optJSONObject("comando")
             return Resumo(
-                estado = j.optString("estado", "SEM_DADOS"),
+                estado = j.texto("estado", "SEM_DADOS"),
                 fcMedia = if (r.isNull("fcMedia")) "—" else "${r.optDouble("fcMedia")} bpm",
-                movimento = r.optString("movimento", "—"),
-                fonteMovimento = r.optString("fonteMovimento", "—"),
+                movimento = r.texto("movimento"),
+                fonteMovimento = r.texto("fonteMovimento"),
                 online = j.optBoolean("online"),
-                ultimoContato = j.optString("ultimoContatoUtc", "—"),
+                ultimoContato = j.texto("ultimoContatoUtc"),
                 comando = c?.let { "${it.optString("commandId")}: ${it.optString("status")}" },
             )
         }
@@ -123,7 +127,7 @@ class CuidadorViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             aviso = try {
                 val c = cliente.reconhecerAlerta()
-                "Comando ${c.optString("commandId")} ${c.optString("status")}"
+                "Reconhecimento enviado (${c.texto("commandId")}). Acompanhe o status no cartão."
             } catch (e: ErroApi) {
                 if (e.codigo == 401) { sair("Sessão expirou, entre de novo"); return@launch }
                 if (e.codigo == 409) "Não há alerta ativo para reconhecer" else e.message
@@ -162,7 +166,7 @@ class CuidadorViewModel(app: Application) : AndroidViewModel(app) {
                     val capturado = System.currentTimeMillis()
                     envioMovimento = try {
                         val r = cliente.enviarMovimento(intensidade, capturado)
-                        "%.2f g enviado (%s)".format(intensidade, r.optString("movimento"))
+                        "%.2f g enviado (%s)".format(intensidade, r.texto("movimento"))
                     } catch (e: ErroApi) {
                         if (e.codigo == 401) { sair("Sessão expirou, entre de novo"); return@launch }
                         "descartada pela API: ${e.message}"
