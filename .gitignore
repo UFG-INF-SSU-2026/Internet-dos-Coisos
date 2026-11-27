@@ -20,3 +20,6 @@ marco4/mobile/.gradle/
 marco4/mobile/build/
 marco4/mobile/app/build/
 marco4/testes/relatorio-junit-*.xml
+marco4/docs/artigo/*.aux
+marco4/docs/artigo/*.log
+marco4/docs/artigo/*.out

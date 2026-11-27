@@ -1,0 +1,572 @@
+\documentclass[12pt,a4paper]{article}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage[brazil]{babel}
+\usepackage{mathptmx}
+\usepackage[a4paper,top=3cm,bottom=2cm,left=3cm,right=2cm]{geometry}
+\usepackage{booktabs,tabularx,array,graphicx,caption,xcolor,enumitem,amsmath}
+\usepackage{tikz}
+\Setikzlibrary{positioning,arrows.meta,fit,automata,calc}
+\usepackage[hidelinks]{hyperref}
+\usepackage{listings}
+
+\lstset{basicstyle=\ttfamily\footnotesize,columns=fullflexible,frame=single,breaklines=true,
+  framesep=4pt,xleftmargin=6pt,xrightmargin=6pt}
+\captionsetup{font=small,labelfont=bf}
+\setlength{\parskip}{4pt}
+\setlist{itemsep=2pt,topsep=3pt}
+\newcolumntype{L}{>{\raggedright\arraybackslash}X}
+\renewcommand{\arraystretch}{1.15}
+
+\title{\textbf{Monitoramento ubíquo de frequência cardíaca com mudança de contexto pelo acelerômetro do smartphone}\\[4pt]
+\large Um protótipo com ESP32 simulado, fila FIFO, banco temporal e aplicativo Android}
+\author{Felipe Alves \and Felipe O. Carvalho \and Matheus Augusto \and Murilo Bernardo\\[4pt]
+\small Instituto de Informática -- Universidade Federal de Goiás (UFG)\\
+\small Software para Sistemas Ubíquos (INF0483) -- 2026/2}
+\date{27 de novembro de 2026 -- versão do Marco 4}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+\noindent
+Alertas de frequência cardíaca (FC) elevada perdem valor quando disparam em situações em que a FC alta é esperada, como durante o esforço físico.
+Este trabalho apresenta um protótipo de monitoramento ubíquo em que a decisão sobre o estado de um paciente fictício combina dois produtores de eventos.
+O primeiro é um ESP32 simulado no Wokwi, que mede FC sintética e aceleração.
+O segundo é o acelerômetro do smartphone do cuidador, que informa se o paciente está em movimento.
+Uma API em FastAPI recebe os dois fluxos em uma única fila FIFO, aplica uma regra com janela, cobertura mínima, persistência, histerese e validade de contexto, grava leituras, transições e comandos no TimescaleDB e devolve a resposta ao cuidador, que pode reconhecer o alerta e silenciar o atuador do dispositivo.
+A autenticação usa HMAC-SHA256 no dispositivo e, no aplicativo, um token assinado obtido por login, sem chaves no APK, sobre HTTPS validado pelo Android.
+A avaliação combina 44 testes automatizados, executados em integração contínua, com medições reprodutíveis.
+O processamento de um lote leva cerca de 4,5\,ms dentro da API.
+Com a FC em 120\,bpm por 10 minutos, o sistema gera um alerta sem o contexto do celular e nenhum quando o celular indica movimento.
+A avaliação também revelou e permitiu corrigir um defeito na combinação dos dois produtores.
+\end{abstract}
+
+\noindent\textbf{Palavras-chave:} computação ubíqua; consciência de contexto; Internet das Coisas; monitoramento de saúde; processamento de eventos.
+
+% ------------------------------------------------------------------
+\section{Introdução}
+
+A computação ubíqua propõe sistemas que se integram ao ambiente e ao cotidiano das pessoas, de modo que a tecnologia ``desapareça'' do primeiro plano \cite{weiser1991}.
+Em saúde, essa visão se traduz em dispositivos vestíveis e sensores conectados que acompanham sinais do paciente continuamente e avisam alguém quando algo foge do esperado \cite{islam2015}.
+O valor desse acompanhamento depende menos da quantidade de dados coletados do que da qualidade das decisões tomadas sobre eles.
+Um sistema que alerta demais acaba ignorado: o fenômeno da \emph{fadiga de alarmes} é documentado em ambientes clínicos, nos quais a maior parte dos alarmes não exige ação \cite{sendelbach2013}.
+
+A frequência cardíaca ilustra bem o problema.
+Uma FC de 120\,bpm em repouso pode indicar uma situação que merece atenção, mas a mesma FC durante uma caminhada rápida é normal.
+Um alerta baseado só no limiar de FC, portanto, dispara em situações irrelevantes.
+O que distingue os dois casos é o \emph{contexto}, entendido como qualquer informação que caracteriza a situação de uma entidade relevante para a interação \cite{dey2001}.
+Aqui, o contexto é se o paciente está ou não em movimento.
+
+Este trabalho descreve o projeto ``Internet dos Coisos'', desenvolvido ao longo de quatro marcos da disciplina Software para Sistemas Ubíquos.
+O sistema simula uma roupa inteligente com um ESP32 que mede FC e aceleração, envia as leituras a um servidor e acende um LED e um buzzer quando o servidor decide que o paciente precisa de atenção.
+O cuidador acompanha o estado por um painel web e por um aplicativo Android e pode reconhecer o alerta, o que silencia o buzzer.
+No quarto marco, o aplicativo passou a ser também o \emph{segundo produtor} de eventos: o acelerômetro do celular informa o movimento do paciente, e esse contexto suprime ou encerra o alerta de FC alta.
+
+As contribuições deste trabalho são:
+\begin{enumerate}
+  \item a arquitetura de um sistema com dois produtores heterogêneos, um dispositivo embarcado e um smartphone, consumidos por uma única fila FIFO e por uma regra com estado;
+  \item uma regra de decisão que combina janela deslizante, cobertura mínima, persistência, histerese, tempo mínimo por estado e um contexto externo com prazo de validade;
+  \item um esquema de autenticação e autorização em que dispositivo, painel e aplicativo têm identidades e permissões distintas, sem segredos no repositório nem no APK;
+  \item uma avaliação reprodutível, com testes automatizados em integração contínua e medições com relógio simulado, que revelou e permitiu corrigir um defeito na interação entre os dois produtores.
+\end{enumerate}
+
+O restante do texto está organizado assim.
+A Seção~\ref{sec:fund} apresenta a fundamentação e os trabalhos relacionados.
+A Seção~\ref{sec:arq} descreve a proposta e a arquitetura, e a Seção~\ref{sec:impl}, a implementação.
+A Seção~\ref{sec:metodo} define a metodologia de avaliação, cujos resultados são discutidos na Seção~\ref{sec:result}.
+A Seção~\ref{sec:concl} conclui o trabalho.
+
+% ------------------------------------------------------------------
+\section{Fundamentação e trabalhos relacionados}\label{sec:fund}
+
+\subsection{Computação ubíqua e consciência de contexto}
+
+Weiser descreveu a computação ubíqua como computadores embutidos no ambiente, usados sem atenção consciente \cite{weiser1991}.
+Satyanarayanan apontou os desafios práticos dessa visão, entre eles a percepção do contexto do usuário, o uso inteligente de espaços e a adaptação a recursos variáveis \cite{satya2001}.
+Dey define contexto como a informação usada para caracterizar a situação de uma entidade e considera um sistema \emph{consciente de contexto} quando usa essa informação para oferecer serviços relevantes à tarefa do usuário \cite{dey2001}.
+Abowd et al.\ destacam quatro tipos primários de contexto: localização, identidade, tempo e atividade \cite{abowd1999}.
+O protótipo usa dois deles: o \emph{tempo}, nas janelas, na persistência e na validade das leituras, e a \emph{atividade}, no movimento do paciente.
+
+\subsection{Internet das Coisas em saúde e reconhecimento de atividade}
+
+Islam et al.\ revisam arquiteturas de IoT para saúde e organizam essas soluções em sensores no corpo, gateways e serviços na nuvem, destacando requisitos de segurança e privacidade \cite{islam2015}.
+O reconhecimento de atividade humana com sensores vestíveis, em especial acelerômetros, é uma área consolidada.
+Lara e Labrador revisam técnicas que vão de limiares sobre a magnitude da aceleração a classificadores treinados \cite{lara2013}.
+Este trabalho adota deliberadamente a forma mais simples: um limiar sobre o desvio da magnitude da aceleração em relação a 1\,$g$.
+O objetivo não é classificar atividades, e sim distinguir ``em repouso'' de ``em movimento'' de forma explicável e testável.
+
+\subsection{Fadiga de alarmes}
+
+Sendelbach e Funk descrevem a fadiga de alarmes como a dessensibilização da equipe diante de alarmes frequentes e majoritariamente sem ação necessária, com risco à segurança do paciente \cite{sendelbach2013}.
+Entre as medidas recomendadas estão ajustar limiares e atrasos aos pacientes e às situações.
+Os mecanismos da regra proposta seguem essa direção: persistência para não alertar por um pico isolado, histerese para não oscilar perto do limiar e supressão por contexto de atividade.
+
+\subsection{Mensageria e processamento de eventos}
+
+O padrão produtor-consumidor com um canal intermediário desacopla quem gera mensagens de quem as processa e permite absorver rajadas \cite{hohpe2003}.
+Com \emph{um único consumidor}, o canal também impõe uma ordem total de processamento, o que simplifica a regra com estado: não há duas avaliações concorrentes sobre a mesma janela.
+Brokers como MQTT foram usados no Marco 2 do projeto.
+No Marco 3, a comunicação passou para HTTP, para deixar explícitos os códigos de autenticação (401) e autorização (403), e a fila virou uma estrutura em memória dentro da API.
+
+\subsection{Segurança em IoT}
+
+O HMAC \cite{rfc2104} produz um código de autenticação de mensagem a partir de uma chave compartilhada, que garante integridade e autenticidade sem transmitir a chave.
+Sozinho, porém, não garante confidencialidade, e um código antigo pode ser repetido se nada ligar a mensagem ao tempo.
+O TLS~1.3 \cite{rfc8446} protege o canal e autentica o servidor por certificado.
+Tokens do tipo \emph{Bearer} \cite{rfc6750} dão acesso a quem os possui e, por isso, só podem trafegar em canal protegido.
+Para armazenar senhas, funções de derivação de chave caras, como o scrypt \cite{rfc7914}, dificultam ataques de dicionário contra um eventual vazamento do hash.
+
+\subsection{Trabalhos relacionados e posicionamento}
+
+As soluções revisadas em \cite{islam2015} costumam concentrar a decisão em um gateway ou na nuvem, que recebe dados de sensores no corpo.
+Os trabalhos de reconhecimento de atividade \cite{lara2013} usam o smartphone ou sensores dedicados para \emph{classificar} a atividade como fim.
+O protótipo aqui descrito se diferencia em três aspectos, compatíveis com o escopo didático:
+\begin{itemize}
+  \item usa a atividade como \emph{contexto de supressão} de um alerta fisiológico, e não como resultado;
+  \item trata o contexto como um fato com prazo de validade, e não como um estado permanente;
+  \item torna verificável cada regra de decisão e de segurança por testes automatizados.
+\end{itemize}
+O trabalho não tem pretensão clínica: os sinais são sintéticos e os limiares, escolhidos para demonstração.
+
+% ------------------------------------------------------------------
+\section{Proposta e arquitetura}\label{sec:arq}
+
+\subsection{Cenário e requisitos}
+
+Um paciente fictício (\texttt{patient-0042}) veste uma roupa com um ESP32 (\texttt{esp32-borda-01}) que mede FC e aceleração uma vez por segundo.
+Um cuidador (\texttt{cuidador01}) acompanha o paciente pelo celular ou pelo computador.
+A Tabela~\ref{tab:req} resume os requisitos do quarto marco e onde cada um é atendido.
+
+\begin{table}[ht]
+\centering\small
+\caption{Requisitos do Marco 4 e como o protótipo os atende.}\label{tab:req}
+\begin{tabularx}{\textwidth}{@{}p{3.6cm}L@{}}
+\toprule
+\textbf{Requisito} & \textbf{Atendimento} \\
+\midrule
+Dois produtores, decisão e resposta & ESP32 (lotes de FC e aceleração) e app Android (movimento); decisão em \texttt{regra.py}; resposta: estado no app e no painel, LED e buzzer, e reconhecimento do alerta com confirmação (ACK) \\
+Mudança de contexto & Movimento informado pelo celular nos últimos 6\,s suprime ou encerra o alerta de FC alta \\
+Persistência & TimescaleDB com três \emph{hypertables}: leituras, transições de estado e comandos \\
+Segurança & HMAC no dispositivo, sessão no painel, token no app; vínculo dispositivo--paciente--cuidador; HTTPS no app \\
+Falha e recuperação & Modo local no ESP32, estado \texttt{DADOS\_INSUFICIENTES} na API, app que mantém o último estado e retoma sozinho \\
+Aplicativo móvel & App nativo em Kotlin + Jetpack Compose, com login, estado, reconhecimento do alerta e acelerômetro \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\subsection{Visão geral}
+
+A Figura~\ref{fig:arq} mostra os componentes e os fluxos.
+Há dois ciclos produtor-consumidor.
+No \emph{ciclo 1}, o ESP32 e o app produzem leituras, que a API consome por uma única fila FIFO e transforma em estado.
+No \emph{ciclo 2}, o cuidador produz um comando de reconhecimento, o ESP32 o consome ao consultar a API, silencia o buzzer e produz uma confirmação (ACK), que a API consome e repassa às interfaces.
+
+\begin{figure}[ht]
+\centering
+\begin{tikzpicture}[
+  font=\footnotesize,
+  caixa/.style={draw, rounded corners=3pt, align=center, minimum height=9mm, inner sep=4pt, fill=#1},
+  caixa/.default={blue!6},
+  seta/.style={-{Stealth[length=2mm]}, thick},
+  rot/.style={font=\scriptsize, align=center, fill=white, inner sep=1pt}]
+  \node[caixa=orange!10] (esp) {ESP32 (Wokwi)\\FC sintética + MPU6050\\LED, buzzer, modo local};
+  \node[caixa=red!8, right=3.2cm of esp] (app) {App Android\\acelerômetro, estado,\\reconhecer alerta};
+  \node[caixa=gray!10, below=1.3cm of $(esp)!0.5!(app)$, minimum width=5cm] (tun) {Túnel Cloudflare (URL temporária)};
+  \node[caixa, below=0.9cm of tun, minimum width=5cm] (api) {FastAPI: HMAC / token, vínculo de permissão};
+  \node[caixa=yellow!15, below=0.7cm of api, minimum width=5cm] (fila) {Fila FIFO \texttt{asyncio.Queue} (128 itens)};
+  \node[caixa, below=0.7cm of fila, minimum width=5cm] (regra) {Consumidor único + \texttt{regra.py}};
+  \node[caixa=green!10, below left=0.9cm and -1.2cm of regra] (db) {TimescaleDB\\leituras, eventos\_estado,\\comandos};
+  \node[caixa=violet!8, below right=0.9cm and -1.2cm of regra] (ui) {Painel web\\(WebSocket)};
+  \draw[seta] (esp) -- node[rot, left=2pt, pos=0.45]{lotes HTTP + HMAC\\comando / ACK} (tun);
+  \draw[seta] (app) -- node[rot, right=2pt, pos=0.45]{movimento, estado,\\comando: HTTPS + token} (tun);
+  \draw[seta] (tun) -- (api);
+  \draw[seta] (api) -- (fila);
+  \draw[seta] (fila) -- (regra);
+  \draw[seta] (regra) -- (db);
+  \draw[seta] (regra) -- (ui);
+  \draw[seta, dashed] (ui.east) -| ++(0.6,0) |- node[rot, pos=0.25, right]{reconhecer\\alerta} (api.east);
+\end{tikzpicture}
+\caption{Arquitetura do Marco 4. Os dois produtores chegam pela mesma fila; a resposta volta ao ESP32 pela consulta periódica de comandos.}\label{fig:arq}
+\end{figure}
+
+\subsection{Distribuição das responsabilidades}
+
+A distribuição segue o princípio de colocar cada decisão onde está a informação necessária para tomá-la:
+\begin{itemize}
+  \item \textbf{ESP32.} Mede, atua e mantém uma regra mínima para quando a rede cai: se a API não responde por 8\,s, entra em \emph{modo local} e alerta sozinho com FC acima de 100\,bpm em repouso. A regra completa saiu do firmware no Marco 3, porque em Python ela é testável sem simulador.
+  \item \textbf{API.} É o único ponto em que os dois produtores se encontram, por isso concentra a decisão. Um único processo com um único consumidor garante uma ordem total dos eventos.
+  \item \textbf{Aplicativo.} Produz o contexto (movimento) e serve de interface do cuidador. Não decide nada: mostra o estado calculado pela API.
+  \item \textbf{Banco temporal.} Fica em um serviço gerenciado na nuvem, para que o histórico sobreviva ao reinício da máquina da API.
+\end{itemize}
+
+\subsection{Contratos}
+
+O ESP32 envia lotes com até 10 leituras (na prática, 3 por lote, um lote a cada 3\,s).
+Cada lote leva o identificador do dispositivo, o do paciente e um \texttt{loteId} para deduplicação.
+O app envia uma leitura a cada 2\,s, com a intensidade do movimento e o instante de captura:
+
+\begin{lstlisting}
+POST /api/app/leituras          Authorization: Bearer <token>
+{"entityId": "patient-0042", "intensidade": 0.42, "capturadoEmMs": 1764252000123}
+-> 200 {"status": "recebido", "estado": "NORMAL", "movimento": "ACTIVE"}
+-> 422 {"erro": "Leitura descartada", "motivo": "atrasada", "atrasoMs": 15000}
+\end{lstlisting}
+
+A intensidade é o desvio da magnitude da aceleração em relação à gravidade, em unidades de $g$:
+\begin{equation}
+  i = \left|\, \frac{\sqrt{a_x^2 + a_y^2 + a_z^2}}{9{,}81} - 1 \,\right|.
+\end{equation}
+O app envia o maior valor de $i$ observado desde o envio anterior, para que uma sacudida curta não se perca entre duas amostras.
+Os contratos completos estão versionados no repositório, em \texttt{marco4/contrato/}.
+
+% ------------------------------------------------------------------
+\section{Implementação}\label{sec:impl}
+
+\subsection{Dispositivo}
+
+O firmware do ESP32 roda no simulador Wokwi.
+Um potenciômetro e cenários pré-programados geram a FC, e um MPU6050 virtual fornece a aceleração.
+Pelo monitor serial, é possível escolher cenários de normalidade, FC alta em repouso, sensor ausente, FC alta com movimento, ciclo automático e falha de rede.
+Cada lote é assinado com HMAC-SHA256 sobre a concatenação do horário (sincronizado por NTP), do método, da rota e do corpo da requisição.
+A cada 3\,s, o dispositivo também consulta se há um comando pendente; ao recebê-lo, silencia o buzzer e envia o ACK.
+
+\subsection{API e fila}
+
+A API é escrita em Python com FastAPI e roda em um único processo Uvicorn.
+Cada requisição de produtor passa por três etapas antes de entrar na fila:
+\begin{itemize}
+  \item autenticação: assinatura do dispositivo ou token do app;
+  \item autorização: o dispositivo ou o token pertence ao paciente informado;
+  \item validação do conteúdo: tipos, faixas e tamanho do lote.
+\end{itemize}
+Os itens válidos entram em uma \texttt{asyncio.Queue} de capacidade 128, rotulados com a origem (\texttt{esp32} ou \texttt{celular}).
+Um único consumidor retira os itens em ordem FIFO, aplica a regra e, se houver banco configurado, grava o lote e a eventual transição.
+Por fim, publica o novo estado aos navegadores conectados por WebSocket \cite{rfc6455}.
+A resposta HTTP aguarda o processamento, e por isso o produtor recebe o estado calculado na própria resposta.
+Com a fila cheia, a API responde 503.
+
+\subsection{Regra de decisão}
+
+A regra mantém uma janela das últimas 10 amostras de FC e das últimas 5 de movimento.
+A Tabela~\ref{tab:param} lista os parâmetros, reduzidos para que cada transição apareça em uma demonstração de poucos minutos.
+A Figura~\ref{fig:estados} mostra os estados e as transições.
+
+\begin{table}[ht]
+\centering\small
+\caption{Parâmetros da regra.}\label{tab:param}
+\begin{tabularx}{\textwidth}{@{}lrL@{}}
+\toprule
+\textbf{Parâmetro} & \textbf{Valor} & \textbf{Função} \\
+\midrule
+Janela de FC / de movimento & 10 / 5 amostras & Média móvel e movimento predominante \\
+Cobertura mínima & 70\% & Abaixo disso: \texttt{DADOS\_INSUFICIENTES} \\
+Limiar de entrada / saída & 100 / 92 bpm & Histerese \\
+Persistência & 2 avaliações & Evita alerta por um lote isolado \\
+Tempo mínimo por estado & 4 s & Evita oscilação \\
+Silêncio do dispositivo & 8 s & Sem lote: \texttt{DADOS\_INSUFICIENTES} \\
+Repouso & $i \le 0{,}15\,g$ & Mesmo limiar para MPU6050 e celular \\
+Validade do contexto do celular & 6 s & Depois disso, vale só o ESP32 \\
+Atraso máximo / adiantamento & 10 s / 5 s & Leitura do celular fora disso: 422 \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\begin{figure}[ht]
+\centering
+\begin{tikzpicture}[font=\footnotesize, node distance=2.2cm and 4.2cm,
+  estado/.style={draw, rounded corners=4pt, minimum width=3.4cm, minimum height=9mm, align=center},
+  seta/.style={-{Stealth[length=2mm]}, thick}, rot/.style={font=\scriptsize, align=center}]
+  \node[estado, fill=gray!12] (di) {DADOS\_INSUFICIENTES};
+  \node[estado, fill=green!12, below left=1.6cm and 0.4cm of di] (n) {NORMAL};
+  \node[estado, fill=red!12, below right=1.6cm and 0.4cm of di] (a) {ATENCAO};
+  \draw[seta] (di) -- node[rot, left=4pt]{cobertura $\ge$ 70\%} (n);
+  \draw[seta] ([yshift=2mm]n.east) -- node[rot, above]{média $>$ 100 bpm, em repouso,\\2 lotes seguidos, $\ge$ 4 s} ([yshift=2mm]a.west);
+  \draw[seta] ([yshift=-2mm]a.west) -- node[rot, below]{média $\le$ 92 bpm \textbf{ou} em movimento\\(ESP32 ou celular), $\ge$ 4 s} ([yshift=-2mm]n.west -| n.east);
+  \draw[seta] (a) -- node[rot, right=4pt]{cobertura $<$ 70\%\\ou 8 s sem lote} (di);
+  \draw[seta] (n.north) to[bend left=20] node[rot, left=2pt]{8 s sem lote} (di.west);
+\end{tikzpicture}
+\caption{Estados do paciente. A transição de ATENCAO para NORMAL causada pelo celular é registrada com a razão \texttt{movimento\_no\_celular}.}\label{fig:estados}
+\end{figure}
+
+O contexto do celular entra no cálculo do movimento da seguinte forma.
+Seja $m_E$ o movimento predominante nas 5 últimas amostras do ESP32 e $(m_C, t_C)$ a última leitura aceita do celular, com seu instante.
+O movimento usado pela regra no instante $t$ é
+\begin{equation}
+  m(t) = \begin{cases}
+    \texttt{ACTIVE}, & \text{se } m_C = \texttt{ACTIVE} \text{ e } t - t_C \le 6\,\text{s},\\
+    m_E, & \text{caso contrário.}
+  \end{cases}
+\end{equation}
+Só o movimento \emph{ativo} do celular sobrepõe o do ESP32.
+Assim, um celular parado sobre a mesa não anula o movimento detectado na roupa.
+
+Duas restrições completam a combinação.
+A primeira: uma leitura do celular pode \emph{suprimir} ou \emph{encerrar} um alerta, mas não conta para a persistência de entrada, de modo que o alerta continua exigindo 2 lotes do ESP32.
+A segunda: com o ESP32 em silêncio, a leitura do celular não reavalia a janela antiga, para não tirar o paciente de \texttt{DADOS\_INSUFICIENTES} com dados velhos.
+As duas restrições foram acrescentadas depois de a avaliação revelar o defeito discutido na Seção~\ref{sec:result}.
+
+\subsection{Validade e atraso das leituras do celular}
+
+A rede móvel pode atrasar ou reordenar requisições.
+Uma leitura que chega tarde descreve um movimento que já passou e não deve mudar o contexto atual.
+Por isso, a API compara o instante de captura informado pelo app com o próprio relógio e descarta, com 422, leituras de três tipos:
+\begin{itemize}
+  \item atrasadas em mais de 10\,s;
+  \item adiantadas em mais de 5\,s, o que indica relógio do celular errado;
+  \item mais antigas que a última leitura aceita.
+\end{itemize}
+Leituras descartadas não entram na fila e são contadas no estado, para diagnóstico.
+
+\subsection{Persistência}
+
+Quando a variável \texttt{DATABASE\_URL} está configurada, um adaptador grava os dados em três tabelas convertidas em \emph{hypertables} do TimescaleDB \cite{timescale}, particionadas pelo tempo:
+\begin{itemize}
+  \item \texttt{leituras}: cada amostra do ESP32;
+  \item \texttt{eventos\_estado}: cada transição de estado, com a razão, a média e a cobertura;
+  \item \texttt{comandos}: cada mudança de status de um comando (\texttt{PENDENTE}, \texttt{ENTREGUE}, \texttt{EXECUTADO}).
+\end{itemize}
+As gravações rodam em uma \emph{thread} auxiliar, para não bloquear o laço de eventos, e uma falha no banco não impede o alerta: a API continua decidindo em memória e contabiliza as gravações perdidas.
+As leituras do celular não são gravadas, apenas as transições que elas causam.
+O valor do movimento perde sentido depois dos 6\,s de validade, e a transição com a razão \texttt{movimento\_no\_celular} já registra o efeito do contexto.
+
+\subsection{Segurança}
+
+A Tabela~\ref{tab:seg} resume como cada participante é identificado e o que pode fazer.
+Os segredos ficam fora do Git: a chave do dispositivo, o segredo do servidor e o hash scrypt \cite{rfc7914} da senha do cuidador são gerados localmente por um script, em arquivos ignorados pelo controle de versão.
+Uma chave de demonstração chegou a ser versionada no Marco 3, foi removida do repositório e substituída.
+
+\begin{table}[ht]
+\centering\small
+\caption{Identidade, canal e permissões de cada participante.}\label{tab:seg}
+\begin{tabularx}{\textwidth}{@{}p{2.3cm}LLL@{}}
+\toprule
+\textbf{Participante} & \textbf{Identidade} & \textbf{Canal} & \textbf{Permissões} \\
+\midrule
+ESP32 & HMAC-SHA256 com chave própria e horário (janela de 120\,s) & HTTP até a borda do túnel (limitação declarada) & Publicar leituras e buscar ou confirmar comandos só do seu paciente \\
+Painel web & Senha (scrypt) e cookie de sessão assinado, \texttt{SameSite=Lax} & HTTP local ou HTTPS pelo túnel & Ver o seu paciente e criar comandos \\
+App Android & Senha e token \emph{Bearer} assinado, válido por 8\,h \cite{rfc6750} & Só HTTPS, com certificado validado pelo Android & Ver o seu paciente, criar comandos e enviar movimento \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+O token do app é assinado com o segredo do servidor e carrega o usuário e o paciente.
+Por isso, o servidor não guarda sessões do app e nenhuma credencial administrativa vai no APK.
+A contrapartida é que um token não pode ser revogado individualmente antes de expirar.
+O manifesto do app proíbe tráfego em texto claro, e a conexão usa as autoridades certificadoras do sistema, o que valida a identidade do serviço \cite{rfc8446}.
+No ESP32, o \emph{handshake} TLS não funcionou no sketch do grupo, e a comunicação ficou em HTTP com HMAC.
+Esse trecho tem integridade e autenticidade, mas não sigilo, e admite repetição de mensagens dentro da janela de 120\,s, atenuada pela deduplicação por \texttt{loteId}.
+
+\subsection{Aplicativo Android}
+
+O app é nativo, escrito em Kotlin com Jetpack Compose, e não usa bibliotecas de rede além das do próprio Android.
+Tem duas telas:
+\begin{itemize}
+  \item \textbf{Login.} Recebe a URL HTTPS do túnel, o usuário e a senha e obtém o token.
+  \item \textbf{Estado.} Consulta a API a cada 2\,s e trata as três situações exigidas: carregamento, falha de comunicação (mantendo o último estado na tela) e resultado. Oferece o botão \emph{Reconhecer alerta}, habilitado só em \texttt{ATENCAO}.
+\end{itemize}
+Em paralelo, o \texttt{SensorManager} entrega as amostras do acelerômetro \cite{androidsensors}, e o app envia a intensidade a cada 2\,s.
+Uma resposta 401 leva de volta ao login.
+
+% ------------------------------------------------------------------
+\section{Metodologia de avaliação}\label{sec:metodo}
+
+A avaliação responde a quatro perguntas, alinhadas às verificações pedidas para o Marco 4:
+\begin{description}[leftmargin=0.6cm, style=nextline]
+  \item[Q1 -- Fluxo e contexto] Os dois produtores chegam à decisão e à resposta, e o contexto do celular altera a decisão como projetado?
+  \item[Q2 -- Persistência] Leituras, transições e comandos são gravados e recuperados?
+  \item[Q3 -- Segurança] Identidades inválidas e operações fora da permissão são rejeitadas?
+  \item[Q4 -- Falha e recuperação] O sistema reconhece a falta de dados e volta ao normal quando eles retornam?
+\end{description}
+
+Foram usados três instrumentos.
+
+\textbf{Testes automatizados.}
+São 44 testes em Python (\texttt{unittest}, executados com \texttt{pytest}) que exercitam a regra pura e a API completa dentro do processo, com credenciais geradas por teste, relógio monotônico controlado e o banco substituído por um objeto simulado.
+A integração contínua (GitHub Actions) executa a suíte a cada envio à \texttt{main}, com Python 3.10 e 3.12, e guarda o relatório JUnit como evidência.
+
+\textbf{Medições reprodutíveis.}
+O script \texttt{avaliar.py} mede quatro aspectos:
+\begin{enumerate}[label=(\alph*)]
+  \item a latência de processamento dentro da API, com 300 requisições de cada tipo e sem rede;
+  \item o custo do login;
+  \item os tempos de decisão da regra, com relógio simulado em que o ESP32 envia um lote a cada 3\,s e o celular uma leitura a cada 2\,s;
+  \item a taxa de descarte de 2000 leituras sintéticas do celular, com atraso de rede exponencial de média 2\,s e 5\% de leituras retidas entre 12 e 30\,s, com semente fixa.
+\end{enumerate}
+O ambiente de medição foi um notebook com Windows 11 e Python 3.14.
+
+\textbf{Ensaio com o sistema completo.}
+O ensaio usa o TimescaleDB na nuvem, o túnel, o Wokwi e o APK instalado em um celular.
+Seu roteiro, com entrada, resultado esperado e campo para o resultado observado, está no documento de verificação do repositório.
+Ele cobre o que os testes não alcançam: a interface do app, o certificado real do túnel e a preservação dos dados no banco depois de reiniciar a API.
+
+% ------------------------------------------------------------------
+\section{Resultados e discussão}\label{sec:result}
+
+\subsection{Testes automatizados}
+
+Os 44 testes passaram localmente e no CI.
+A Tabela~\ref{tab:testes} relaciona os módulos de teste às perguntas de avaliação.
+
+\begin{table}[ht]
+\centering\small
+\caption{Testes automatizados por módulo e pergunta de avaliação.}\label{tab:testes}
+\begin{tabularx}{\textwidth}{@{}lrL@{}}
+\toprule
+\textbf{Arquivo} & \textbf{Testes} & \textbf{O que comprova} \\
+\midrule
+\texttt{test\_regra.py} & 7 & Q1, Q4: janela, cobertura, persistência, histerese, movimento, silêncio \\
+\texttt{test\_api.py} & 12 & Q1, Q3, Q4: ciclos 1 e 2; HMAC inválido, corpo alterado, mensagem antiga (401); dispositivo ou paciente alheio (403); papéis \\
+\texttt{test\_melhorias.py} & 6 & Q1: ordem FIFO e contadores; WebSocket só com sessão; diagnóstico sem dados pessoais \\
+\texttt{test\_consolidacao.py} & 4 & Q2: gravação de leituras, transições e dos três status de comando; consulta ao histórico; segredos gerados fora do Git \\
+\texttt{test\_app\_mobile.py} & 15 & Q1, Q3, Q4: token inválido, forjado ou expirado (401); outro paciente (403); atraso (422); supressão e encerramento por contexto; expiração; regressões da Seção 6.3 \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\subsection{Latência de processamento}
+
+A Tabela~\ref{tab:lat} mostra o tempo entre a chegada da requisição e a resposta, medido dentro do processo.
+Esse tempo inclui a verificação da credencial, a passagem pela fila, a regra e a serialização do estado.
+Ficam de fora a rede, o túnel e o banco.
+
+\begin{table}[ht]
+\centering\small
+\caption{Latência dentro da API (300 requisições; login: 20).}\label{tab:lat}
+\begin{tabular}{@{}lrrr@{}}
+\toprule
+\textbf{Operação} & \textbf{Média (ms)} & \textbf{Mediana (ms)} & \textbf{p95 (ms)} \\
+\midrule
+Lote do ESP32 (HMAC + fila + regra) & 5,17 & 4,45 & 8,09 \\
+Leitura do app (token + fila + regra) & 4,19 & 4,08 & 5,00 \\
+Consulta de estado pelo app & 5,07 & 4,76 & 5,97 \\
+Login do app (scrypt, $N=2^{14}$) & 65,67 & 64,84 & 72,68 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+O processamento leva poucos milissegundos, três ordens de grandeza abaixo dos intervalos de envio (2 a 3\,s).
+Com um único consumidor, uma estimativa grosseira da capacidade é de cerca de 200 itens por segundo, muito acima das menos de 1 mensagem por segundo de um paciente.
+O login é cerca de 15 vezes mais caro que as demais operações, o que é esperado: o custo do scrypt é intencional e incide uma vez a cada 8\,h por aparelho.
+Em uso real, a latência percebida será dominada pela rede e pelo túnel, que não entram nesta medição.
+
+\subsection{Tempos de decisão e efeito do contexto}
+
+A Tabela~\ref{tab:regra} resume o comportamento da regra com relógio simulado.
+
+\begin{table}[ht]
+\centering\small
+\caption{Comportamento da regra com relógio simulado (lote a cada 3\,s, celular a cada 2\,s).}\label{tab:regra}
+\begin{tabularx}{\textwidth}{@{}Lr@{}}
+\toprule
+\textbf{Situação} & \textbf{Resultado} \\
+\midrule
+Início com FC normal até sair de \texttt{DADOS\_INSUFICIENTES} (janela cheia) & 9\,s \\
+FC sobe de 80 para 120\,bpm em repouso, até \texttt{ATENCAO} & 9\,s \\
+FC cai de 120 para 95\,bpm (entre os limiares) & alerta mantido \\
+FC cai de 95 para 85\,bpm, até \texttt{NORMAL} & 2\,s \\
+Alertas em 10\,min de FC 120\,bpm, sem o celular & 1 \\
+Alertas em 10\,min de FC 120\,bpm, com o celular em movimento & 0 \\
+Alerta ativo e o celular começa a balançar, até \texttt{NORMAL} & imediato (na leitura) \\
+Celular volta a ficar parado, até o alerta voltar & 3\,s \\
+Celular para de enviar, até o alerta voltar & 9\,s \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+O alerta surge 9\,s depois da subida da FC, tempo para a média da janela passar de 100\,bpm e a condição persistir por dois lotes.
+A histerese funciona como projetado: 95\,bpm, valor entre a saída (92) e a entrada (100), mantém o alerta.
+O efeito do contexto é o pretendido: com o celular indicando movimento, nenhum alerta é gerado em 10 minutos de FC alta.
+Quando o alerta já está ativo, a primeira leitura de movimento o encerra, porque o tempo mínimo no estado já passou.
+Os dois últimos casos mostram a validade do contexto em ação.
+Se o celular passa a informar repouso, o contexto termina na hora e o alerta volta no próximo lote.
+Se o celular simplesmente para de enviar, o contexto expira em 6\,s e o alerta volta depois de dois lotes, totalizando 9\,s.
+
+\paragraph{Defeito encontrado pela avaliação.}
+Na primeira execução da medição, o alerta voltava em \emph{0\,s} quando o celular parava.
+A causa: as leituras do celular, a cada 2\,s, também reavaliavam a regra e contavam para a persistência de duas avaliações, que fora projetada para contar lotes do ESP32.
+Com o segundo produtor, a persistência passou a ser atingida por duas mensagens no mesmo segundo.
+A mesma análise mostrou outro problema: uma leitura do celular durante o silêncio do ESP32 poderia reavaliar a janela antiga e tirar o paciente de \texttt{DADOS\_INSUFICIENTES}.
+As duas restrições da Seção~4.3 corrigiram esses defeitos, e dois testes de regressão, que falham sem a correção, foram incluídos na suíte.
+O episódio ilustra um risco geral de sistemas com múltiplos produtores: um parâmetro definido em ``número de avaliações'' muda de significado quando um novo produtor passa a disparar avaliações.
+A lição prática é definir persistência e validade em termos da \emph{fonte} ou do \emph{tempo}, nunca do número de mensagens.
+
+\subsection{Validade das leituras}
+
+Das 2000 leituras sintéticas, 1564 (78,2\%) foram aceitas, 114 (5,7\%) descartadas por atraso acima de 10\,s e 322 (16,1\%) descartadas por chegarem fora de ordem.
+O descarte por atraso corresponde quase exatamente às leituras retidas de propósito.
+O descarte por ordem é alto porque o atraso médio (2\,s) é igual ao intervalo entre leituras, e qualquer leitura ultrapassada por uma mais nova é descartada.
+Para o contexto, essa política é adequada: a leitura mais nova já descreve o movimento atual, e a mais velha não acrescenta informação.
+Se o mesmo critério fosse aplicado a medidas cujo histórico importa, como as próprias amostras de FC, a perda seria inaceitável, e seria preciso reordenar em vez de descartar.
+
+\subsection{Persistência, segurança e falha}
+
+Os testes de persistência comprovam que leituras, transições e os três status de cada comando são gravados e que o histórico é consultado pela API.
+Como o banco é simulado nos testes, a comprovação com o TimescaleDB real fica com o ensaio: contar as linhas, reiniciar a API e contar de novo.
+Nos testes de segurança, todas as identidades inválidas recebem 401 e todas as operações fora da permissão recebem 403:
+\begin{itemize}
+  \item token inválido, forjado ou expirado;
+  \item assinatura errada ou corpo alterado;
+  \item mensagem antiga;
+  \item outro paciente, dispositivo não vinculado, ESP32 criando comando ou cuidador forjando ACK.
+\end{itemize}
+Nos testes de falha, o silêncio do ESP32 leva a \texttt{DADOS\_INSUFICIENTES}, e o celular não tira o paciente desse estado.
+A recuperação com o retorno das leituras e o comportamento do app sem rede são verificados no ensaio.
+
+\subsection{Limitações}
+
+\begin{itemize}
+  \item \textbf{Canal do dispositivo.} O trecho entre o ESP32 e o túnel não tem sigilo, e a janela de 120\,s admite repetição. Com dados reais, isso exigiria TLS no dispositivo.
+  \item \textbf{Volatilidade.} Fila, estado corrente e comando pendente ficam em memória. Depois de reiniciar a API, o estado recomeça vazio, embora o histórico esteja no banco.
+  \item \textbf{Validação de campo.} Os números desta seção foram medidos sem rede. Os resultados do ensaio completo, com o APK no celular, entram na versão final deste relatório.
+  \item \textbf{Papel do celular.} Na demonstração, o mesmo celular é o app do cuidador e o sensor do paciente. Num cenário real, o sensor ficaria com o paciente, por exemplo em um relógio.
+  \item \textbf{Energia.} O app mantém o acelerômetro ativo e faz duas requisições a cada 2\,s enquanto está aberto. O consumo não foi medido.
+  \item \textbf{Validade clínica.} Os sinais são sintéticos e os limiares, de demonstração. Nenhuma conclusão clínica pode ser tirada.
+\end{itemize}
+
+% ------------------------------------------------------------------
+\section{Conclusão}\label{sec:concl}
+
+Este trabalho apresentou um protótipo de monitoramento ubíquo em que o alerta de FC elevada depende do contexto de atividade do paciente, informado por um segundo produtor, o acelerômetro do smartphone.
+A arquitetura junta os dois produtores em uma fila FIFO com um consumidor único, aplica uma regra com estado, tempo e validade de contexto, persiste o histórico em um banco temporal e fecha o ciclo com um comando confirmado pelo dispositivo.
+Cada participante tem identidade e permissões próprias, sem segredos no repositório nem no aplicativo.
+
+A avaliação mostrou que o processamento é rápido diante dos intervalos de envio e que o contexto elimina os alertas de FC alta durante o movimento, mantendo-os em repouso.
+Mostrou também que acrescentar um produtor muda o significado de parâmetros definidos em número de mensagens.
+O defeito encontrado e corrigido reforça o valor de medir a regra com relógio simulado, além de testá-la caso a caso.
+
+Os trabalhos futuros, previstos para a entrega final, são:
+\begin{itemize}
+  \item TLS no dispositivo;
+  \item teste de integração com o TimescaleDB real no CI;
+  \item testes instrumentados do aplicativo;
+  \item reconstrução do estado e do comando pendente a partir do banco depois de reiniciar a API;
+  \item registro dos resultados do ensaio completo com o APK.
+\end{itemize}
+
+\section*{Declaração de uso de IA}
+O assistente Claude Code (modelo Claude Opus 5.5) foi usado no Marco 4 para planejar as tarefas, implementar as rotas do app e a regra de contexto, escrever testes, configurar o CI, gerar o esqueleto do app, redigir a documentação e esboçar este texto.
+O grupo revisou o material.
+A validação foi feita pelos testes automatizados, pelas medições reprodutíveis e pelo ensaio do sistema completo.
+O defeito da Seção~6.3 foi identificado a partir dessas medições.
+O grupo é responsável por compreender, testar e explicar o conteúdo entregue.
+
+\begin{thebibliography}{99}\small
+\bibitem{weiser1991} WEISER, M. The computer for the 21st century. \emph{Scientific American}, v.~265, n.~3, p.~94--104, 1991.
+\bibitem{satya2001} SATYANARAYANAN, M. Pervasive computing: vision and challenges. \emph{IEEE Personal Communications}, v.~8, n.~4, p.~10--17, 2001.
+\bibitem{dey2001} DEY, A.~K. Understanding and using context. \emph{Personal and Ubiquitous Computing}, v.~5, n.~1, p.~4--7, 2001.
+\bibitem{abowd1999} ABOWD, G.~D.; DEY, A.~K.; BROWN, P.~J.; DAVIES, N.; SMITH, M.; STEGGLES, P. Towards a better understanding of context and context-awareness. In: \emph{Handheld and Ubiquitous Computing (HUC'99)}. Berlin: Springer, 1999. (LNCS, v.~1707), p.~304--307.
+\bibitem{islam2015} ISLAM, S.~M.~R.; KWAK, D.; KABIR, M.~H.; HOSSAIN, M.; KWAK, K.-S. The Internet of Things for health care: a comprehensive survey. \emph{IEEE Access}, v.~3, p.~678--708, 2015.
+\bibitem{lara2013} LARA, O.~D.; LABRADOR, M.~A. A survey on human activity recognition using wearable sensors. \emph{IEEE Communications Surveys \& Tutorials}, v.~15, n.~3, p.~1192--1209, 2013.
+\bibitem{sendelbach2013} SENDELBACH, S.; FUNK, M. Alarm fatigue: a patient safety concern. \emph{AACN Advanced Critical Care}, v.~24, n.~4, p.~378--386, 2013.
+\bibitem{hohpe2003} HOHPE, G.; WOOLF, B. \emph{Enterprise Integration Patterns: designing, building, and deploying messaging solutions}. Boston: Addison-Wesley, 2003.
+\bibitem{rfc2104} KRAWCZYK, H.; BELLARE, M.; CANETTI, R. \emph{HMAC: keyed-hashing for message authentication}. RFC 2104. IETF, 1997.
+\bibitem{rfc8446} RESCORLA, E. \emph{The Transport Layer Security (TLS) protocol version 1.3}. RFC 8446. IETF, 2018.
+\bibitem{rfc6750} JONES, M.; HARDT, D. \emph{The OAuth 2.0 authorization framework: bearer token usage}. RFC 6750. IETF, 2012.
+\bibitem{rfc7914} PERCIVAL, C.; JOSEFSSON, S. \emph{The scrypt password-based key derivation function}. RFC 7914. IETF, 2016.
+\bibitem{rfc6455} FETTE, I.; MELNIKOV, A. \emph{The WebSocket protocol}. RFC 6455. IETF, 2011.
+\bibitem{timescale} TIGER DATA. \emph{TimescaleDB documentation}. Disponível em: \url{https://www.tigerdata.com/docs}. Acesso em: 27 nov. 2026.
+\bibitem{androidsensors} ANDROID DEVELOPERS. \emph{Motion sensors}. Disponível em: \url{https://developer.android.com/develop/sensors-and-location/sensors/sensors_motion}. Acesso em: 27 nov. 2026.
+\end{thebibliography}
+
+\end{document}
