@@ -46,6 +46,7 @@ Código em `marco4/mobile` (Kotlin + Compose). O passo a passo para compilar est
 - [x] Teste: movimento do celular suprime o alerta
 - [x] CI com caminhos `marco4/`, todos os módulos (inclusive `TestarCredenciaisPrivadas`) e relatório JUnit como artefato (`b6aadae`)
 - [x] CI verde em Python 3.10 e 3.12 (42 testes)
+- [x] Correção da regra encontrada na avaliação: o celular não acelera o alerta nem tira o paciente do silêncio, com 2 testes de regressão (`a94e70b`, 44 testes)
 
 ## Trilha C: documentação e evidências (`395c8e1`, `386e895`, `6cc87df`)
 

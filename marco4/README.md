@@ -26,7 +26,7 @@ O cuidador acompanha pelo app ou pelo painel web e reconhece o alerta, o que sil
 |---|---|---|
 | **1. Aplicativo móvel** | Código em [`mobile/`](mobile/) (Kotlin + Compose) · instruções em [`mobile/README.md`](mobile/README.md) · APK em [`apk/`](apk/) · contrato em [`contrato/app-v1.json`](contrato/app-v1.json) | ⏳ código pronto; falta gerar e testar o APK |
 | **2. Persistência de dados** (banco temporal) | [`api/armazenamento.py`](api/armazenamento.py), esquema em [`api/sql/timescaledb.sql`](api/sql/timescaledb.sql) (3 hypertables) · verificação em [`scripts/verificar_banco.py`](scripts/verificar_banco.py) | ✅ TimescaleDB |
-| **3. Testes automatizados** | [`testes/`](testes/), 42 testes · comandos, módulos e resultados em [`docs/verificacao.md`](docs/verificacao.md) · CI em [`../.github/workflows/testes.yml`](../.github/workflows/testes.yml) com relatório JUnit | ✅ unitários e de API |
+| **3. Testes automatizados** | [`testes/`](testes/), 44 testes · comandos, módulos e resultados em [`docs/verificacao.md`](docs/verificacao.md) · CI em [`../.github/workflows/testes.yml`](../.github/workflows/testes.yml) com relatório JUnit | ✅ unitários e de API |
 | **4. Documentação técnica de implantação** | [`docs/implantacao.md`](docs/implantacao.md): versões, credenciais de teste, banco, ordem de execução e APK | ✅ |
 | **5. Relatório técnico (artigo)** | `docs/artigo.pdf` | ⏳ em escrita |
 
@@ -54,7 +54,7 @@ Os testes automatizados rodam no CI a cada push na `main` ([última execução](
 | Fluxo e contexto | [`test_app_mobile.py`](testes/test_app_mobile.py): as duas origens na mesma fila · movimento do celular suprime e encerra o alerta · contexto expira · [`test_api.py`](testes/test_api.py): ciclos 1 e 2 | [Seção 2.1](docs/verificacao.md#21-fluxo-e-contexto) |
 | Persistência | [`test_consolidacao.py`](testes/test_consolidacao.py): gravação de leituras, transições e comandos e consulta ao histórico (banco simulado) | [Seção 2.2](docs/verificacao.md#22-persistência): SQL antes e depois de reiniciar a API |
 | Segurança | Token inválido, forjado ou expirado → 401 · outro paciente → 403 · assinatura errada, corpo alterado ou mensagem antiga → 401 · ESP32 não cria comando e cuidador não forja ACK | [Seção 2.3](docs/verificacao.md#23-segurança): certificado do túnel e app recusando `http://` |
-| Falha e recuperação | Silêncio do ESP32 → `DADOS_INSUFICIENTES` · leitura atrasada não muda o contexto | [Seção 2.4](docs/verificacao.md#24-falha-e-recuperação): tecla `f`, modo avião, API reiniciada |
+| Falha e recuperação | Silêncio do ESP32 → `DADOS_INSUFICIENTES`, e o celular não tira o paciente desse estado · leitura atrasada não muda o contexto | [Seção 2.4](docs/verificacao.md#24-falha-e-recuperação): tecla `f`, modo avião, API reiniciada |
 
 ### Atendimento ao feedback do Marco 3
 
@@ -165,7 +165,7 @@ Outras limitações declaradas:
 
 | Ferramenta | Finalidade | Síntese das orientações | Sugestões aproveitadas ou modificadas | Validação |
 |---|---|---|---|---|
-| Claude Code (Claude Opus 5.5) | Plano do Marco 4; rotas do app na API; regra de contexto; testes; CI com JUnit; esqueleto do app Android; documentação do Marco 4 | Usar o celular como segundo produtor via acelerômetro; token assinado em vez de chave no APK; descartar leitura atrasada pelo horário de captura; mesma fila FIFO para os dois produtores | Aproveitadas: rotas, testes, CI, app e documentos. Modificado durante o trabalho: o teste de supressão passou a aceitar `DADOS_INSUFICIENTES` nos primeiros lotes, porque a janela ainda não está cheia | 42 testes locais e no CI (Python 3.10 e 3.12); revisão do grupo; ensaio completo em [`docs/verificacao.md`](docs/verificacao.md) |
+| Claude Code (Claude Opus 5.5) | Plano do Marco 4; rotas do app na API; regra de contexto; testes; CI com JUnit; esqueleto do app Android; documentação do Marco 4 | Usar o celular como segundo produtor via acelerômetro; token assinado em vez de chave no APK; descartar leitura atrasada pelo horário de captura; mesma fila FIFO para os dois produtores | Aproveitadas: rotas, testes, CI, app e documentos. Modificado durante o trabalho: o teste de supressão passou a aceitar `DADOS_INSUFICIENTES` nos primeiros lotes, porque a janela ainda não está cheia. Corrigido depois da avaliação: a leitura do celular contava para a persistência de entrada e fazia o alerta voltar em 0 s (commit `a94e70b`) | 44 testes locais e no CI (Python 3.10 e 3.12); revisão do grupo; ensaio completo em [`docs/verificacao.md`](docs/verificacao.md) |
 | _Ferramentas usadas nos marcos anteriores_ | _a preencher pelo grupo_ | | | |
 
 O grupo é responsável por compreender, testar e explicar todo o material entregue.

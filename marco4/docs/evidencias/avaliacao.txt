@@ -1,0 +1,25 @@
+# commit a94e70b | comando (na raiz): python marco4/scripts/avaliar.py | Windows 11, 2026-11-27 14:33 -0300
+# Avaliacao Marco 4 | Python 3.14.4 | win32
+
+## Latencia na API (em processo, sem rede)
+- lote ESP32 (HMAC + fila + regra): media 5.17 ms | mediana 4.45 ms | p95 8.09 ms | n=300
+- leitura do app (token + fila + regra): media 4.19 ms | mediana 4.08 ms | p95 5.00 ms | n=300
+- consulta de estado pelo app (token): media 5.07 ms | mediana 4.76 ms | p95 5.97 ms | n=300
+- login do app (scrypt n=2^14): media 65.67 ms | mediana 64.84 ms | p95 72.68 ms | n=20
+
+## Regra com relogio simulado (lote a cada 3 s, celular a cada 2 s)
+- tempo ate NORMAL a partir do inicio (janela cheia): 9 s
+- tempo ate ATENCAO depois que a FC sobe para 120 bpm: 9 s
+- FC em 95 bpm (entre 92 e 100) encerra o alerta?: nao (histerese)
+- tempo ate NORMAL depois que a FC cai para 85 bpm: 2 s
+- alertas em 10 min de FC 120 sem celular: 1
+- alertas em 10 min de FC 120 com celular em movimento: 0
+- alerta ativo: tempo ate NORMAL depois de balancar o celular: 0 s (movimento_no_celular)
+- celular fica parado (envia repouso): tempo ate o alerta voltar: 3 s
+- celular para de enviar: tempo ate o alerta voltar: 9 s
+
+## Validade das leituras do celular (semente 42)
+- leituras sinteticas: 2000
+- aceitas: 1564 (78.2%)
+- descartadas por atraso > 10 s: 114
+- descartadas fora de ordem: 322
