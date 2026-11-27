@@ -37,7 +37,7 @@ A URL `origin` deve apontar para a organização UFG. O repositório é mantido 
 py -3 --version
 py -3 -m venv .venv
 .\.venv\Scripts\python.exe -m pip install --upgrade pip
-.\.venv\Scripts\python.exe -m pip install -r marco3\api\requirements-test.txt -r marco3\api\requirements-temporal.txt
+.\.venv\Scripts\python.exe -m pip install -r marco4\api\requirements-test.txt -r marco4\api\requirements-temporal.txt
 ```
 
 Se `py` não existir, instale Python 3.10+ e reinicie o terminal. As dependências incluem `websockets`, necessário para o upgrade HTTP/WebSocket no Uvicorn, e `psycopg[binary]`, para o TimescaleDB.
@@ -45,12 +45,12 @@ Se `py` não existir, instale Python 3.10+ e reinicie o terminal. As dependênci
 ## 3. Gerar chaves privadas (raiz)
 
 ```powershell
-.\.venv\Scripts\python.exe marco3\api\gerar_config.py
+.\.venv\Scripts\python.exe marco4\api\gerar_config.py
 ```
 
 Na **primeira execução** cria:
-- `marco3/api/.env` com segredo de sessão, chave da ESP32, hash de senha do cuidador.
-- `marco3/produtor/config.h` com **a mesma chave** e URL do túnel a preencher na execução.
+- `marco4/api/.env` com segredo de sessão, chave da ESP32, hash de senha do cuidador.
+- `marco4/produtor/config.h` com **a mesma chave** e URL do túnel a preencher na execução.
 
 Guarde a senha exibida. Usuário do cuidador: `cuidador01`. Executar novamente preserva os arquivos existentes. Se faltar `config.h` e existir `.env`, o script o recompõe com a mesma chave. Se as duas chaves diferirem, o script aborta para evitar erro silencioso.
 
@@ -75,7 +75,7 @@ SELECT extname, extversion FROM pg_extension WHERE extname = 'timescaledb';
 
 Se aparecer uma linha `timescaledb`, a extensão está habilitada. Este teste não deve ser confundido com PostgreSQL comum.
 
-6. Abra `marco3/api/.env` (privado) e **acrescente ao fim** a URL que a própria plataforma forneceu, por exemplo:
+6. Abra `marco4/api/.env` (privado) e **acrescente ao fim** a URL que a própria plataforma forneceu, por exemplo:
 
 ```dotenv
 DATABASE_URL=postgresql://USUARIO:SENHA_URL_ENCODED@HOST:5432/BANCO?sslmode=require
@@ -86,7 +86,7 @@ Não cole o exemplo literalmente. Se sua senha contiver `@`, `#`, `/`, `:` ou ou
 7. **Na raiz** do repositório, execute:
 
 ```powershell
-.\.venv\Scripts\python.exe marco3\scripts\verificar_banco.py
+.\.venv\Scripts\python.exe marco4\scripts\verificar_banco.py
 ```
 
 O script verifica a extensão, cria/verifica três hypertables e conta os registros, sem mostrar a senha. Esperado:
@@ -99,7 +99,7 @@ Hypertables: comandos, eventos_estado, leituras
 [OK] comandos: 0 registro(s)
 ```
 
-**As tabelas são criadas automaticamente** na primeira conexão com sucesso, pelo `armazenamento.py`. Alternativamente, execute manualmente `marco3/api/sql/timescaledb.sql` no editor SQL. Não é necessário executar duas vezes.
+**As tabelas são criadas automaticamente** na primeira conexão com sucesso, pelo `armazenamento.py`. Alternativamente, execute manualmente `marco4/api/sql/timescaledb.sql` no editor SQL. Não é necessário executar duas vezes.
 
 ### Consultas SQL para a apresentação
 
@@ -129,7 +129,7 @@ SELECT ts, command_id, status FROM comandos ORDER BY ts DESC LIMIT 10;
 ## 5. Iniciar a API (Terminal 1, raiz)
 
 ```powershell
-.\.venv\Scripts\python.exe marco3\api\app.py
+.\.venv\Scripts\python.exe marco4\api\app.py
 ```
 
 Abra http://127.0.0.1:5000/login e entre com `cuidador01` + senha gerada na etapa 3. Em outro navegador/terminal, teste:
@@ -145,7 +145,7 @@ Esperado HTTP 200 com JSON indicando `servico: online`. A URL `/api/saude` não 
 Se o Uvicorn mostrar `Unsupported upgrade request` ou `No supported WebSocket library detected`, o ambiente Python não instalou a dependência necessária. Na raiz do projeto, com a API encerrada, execute:
 
 ```powershell
-.\.venv\Scripts\python.exe -m pip install -r marco3\api\requirements-test.txt -r marco3\api\requirements-temporal.txt
+.\.venv\Scripts\python.exe -m pip install -r marco4\api\requirements-test.txt -r marco4\api\requirements-temporal.txt
 ```
 
 Depois reinicie a API. O projeto declara `websockets` em `requirements.txt`; isso não modifica a comunicação HTTP/HMAC da ESP32.
@@ -155,7 +155,7 @@ Depois reinicie a API. O projeto declara `websockets` em `requirements.txt`; iss
 O script assina lotes fictícios usando a chave privada local, por isso é útil quando a simulação não conecta:
 
 ```powershell
-.\.venv\Scripts\python.exe marco3\scripts\simular_sem_wokwi.py
+.\.venv\Scripts\python.exe marco4\scripts\simular_sem_wokwi.py
 ```
 
 Abra o painel logado para observar o WebSocket atualizado; verifique no painel os contadores `enfileirados`, `processados` e `ultimosLotesProcessados` em ordem FIFO. Para ver fila temporariamente ocupada na demonstração, encerre a API e acrescente `QUEUE_DEMO_DELAY_MS=500` no `.env`, depois reinicie. **Remova este atraso antes do teste normal.**
@@ -190,7 +190,7 @@ Teste primeiro com a URL pública fornecida (HTTPS no seu navegador):
 curl.exe -i https://abc.trycloudflare.com/api/saude
 ```
 
-No projeto Wokwi https://wokwi.com/projects/478071248037862401 (ou um projeto privado do grupo), atualize **quatro** arquivos a partir de `marco3/produtor/`:
+No projeto Wokwi https://wokwi.com/projects/478071248037862401 (ou um projeto privado do grupo), atualize **quatro** arquivos a partir de `marco4/produtor/`:
 
 - `sketch.ino`
 - `diagram.json`
@@ -231,7 +231,7 @@ Para o **segundo ciclo**, no cenário de alerta clique **Reconhecer alerta** no 
 ## 8. Testes automatizados Python (raiz)
 
 ```powershell
-.\.venv\Scripts\python.exe -m unittest discover -s marco3\testes -v
+.\.venv\Scripts\python.exe -m unittest discover -s marco4\testes -v
 ```
 
 A suíte verifica regras, login, assinaturas, fila, WebSocket, comandos e adaptador de persistência com objetos simulados. A execução da aplicação, do banco e do Wokwi é descrita nas seções anteriores.
@@ -248,12 +248,12 @@ A entrega é registrada na `main` da organização UFG, e `feat/marco3-consolida
 git status --short
 git diff --check
 # Remover do indice a chave versionada antiga, preservando seu config.h local:
-git rm --cached --ignore-unmatch -- marco3/produtor/config.h
+git rm --cached --ignore-unmatch -- marco4/produtor/config.h
 git add -A -- README.md LEIA_PRIMEIRO_MARCO3_MELHORIAS.md marco3 .gitignore
 git diff --cached --name-status
 git diff --cached --check
 # O comando abaixo nao pode listar config.h:
-git ls-files --cached -- marco3/api/.env marco3/produtor/config.h
+git ls-files --cached -- marco4/api/.env marco4/produtor/config.h
 ```
 
 A origem e os limites da consolidação estão em [ORIGEM_CONSOLIDACAO.md](ORIGEM_CONSOLIDACAO.md).
