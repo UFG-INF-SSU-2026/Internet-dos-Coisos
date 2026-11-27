@@ -5,8 +5,6 @@ import android.hardware.Sensor
 import android.hardware.SensorEvent
 import android.hardware.SensorEventListener
 import android.hardware.SensorManager
-import kotlin.math.abs
-import kotlin.math.sqrt
 
 /**
  * Acelerômetro do celular: guarda o maior desvio de 1 g desde a última coleta.
@@ -39,9 +37,7 @@ class Movimento(context: Context) : SensorEventListener {
     }
 
     override fun onSensorChanged(evento: SensorEvent) {
-        val (x, y, z) = Triple(evento.values[0], evento.values[1], evento.values[2])
-        val g = sqrt((x * x + y * y + z * z).toDouble()) / SensorManager.GRAVITY_EARTH
-        val desvio = abs(g - 1.0)
+        val desvio = intensidadeMovimento(evento.values[0], evento.values[1], evento.values[2])
         if (desvio > pico) pico = desvio
         teveLeitura = true
     }

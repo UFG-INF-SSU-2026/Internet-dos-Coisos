@@ -26,6 +26,9 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
     buildFeatures { compose = true }
+    testOptions {
+        unitTests.all { it.testLogging { events("passed", "failed") } }
+    }
 }
 
 dependencies {
@@ -39,4 +42,9 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.11.1")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.11.0")
     debugImplementation("androidx.compose.ui:ui-tooling")
+
+    // Testes de unidade na JVM (./gradlew testDebugUnitTest). O org.json do
+    // android.jar é só um esboço fora do aparelho, então os testes usam o real.
+    testImplementation("junit:junit:4.13.2")
+    testImplementation("org.json:json:20250517")
 }

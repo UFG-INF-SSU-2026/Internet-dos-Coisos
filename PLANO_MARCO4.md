@@ -104,5 +104,6 @@ Vão para o README com impacto e justificativa, como o PDF permite.
 
 - [ ] TLS no ESP32
 - [ ] Teste de integração com TimescaleDB real no CI
-- [ ] Testes instrumentados do app
+- [x] Testes de unidade do app na JVM (15, no CI com o APK como artefato)
+- [ ] Testes instrumentados de interface do app
 - [ ] Recuperar o estado e o comando pendente quando a API reinicia

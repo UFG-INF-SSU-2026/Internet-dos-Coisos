@@ -28,6 +28,27 @@ A suíte não precisa de Wokwi, banco ou rede. A API roda dentro do processo com
 | `test_consolidacao.py` | `app.py` + `temporal.py` + `gerar_config.py` | Gravação de leituras, transições e comandos; consulta do histórico; segredos fora do Git | 4 |
 | `test_app_mobile.py` | `app.py` (rotas do app) + `regra.py` (contexto) | Token do app, segundo produtor, validade e atraso, mudança de contexto, ciclo 2 pelo app | 15 |
 
+### Testes de unidade do app Android
+
+Em `marco4/mobile`, rodam na JVM, sem emulador:
+
+```powershell
+.\gradlew.bat testDebugUnitTest
+```
+
+A lógica que não depende do Android fica em [`Logica.kt`](../mobile/app/src/main/java/br/ufg/coisos/Logica.kt). O `Movimento`, a `Api` e a tela usam essas funções, então o teste exercita o mesmo código do APK.
+
+| Classe de teste | Função exercitada | O que comprova | Testes |
+|---|---|---|---|
+| `IntensidadeTest` | `intensidadeMovimento` | Celular parado dá 0 em qualquer posição; a sacudida do ensaio (0,83 g) passa de 0,15 g; tremor pequeno fica abaixo | 5 |
+| `UrlTest` | `urlDaApi` | Só aceita `https://`; recusa `http://`, vazio e URL sem esquema | 4 |
+| `CorpoMovimentoTest` | `corpoMovimento` | Corpo igual ao contrato `app-v1`; intensidade limitada a 0–8 | 2 |
+| `ResumoTest` | `Resumo.de` | Leitura do `/estado`; campos nulos viram "—" (regressão do ensaio 2.0); botão só ativo em `ATENCAO` | 4 |
+
+**Resultado registrado:** 15 testes aprovados.
+- Execução local: [`evidencias/testes-app.txt`](evidencias/testes-app.txt).
+- CI: job `app-android` do mesmo workflow. Roda os testes, gera o APK e guarda os artefatos `relatorio-junit-app` e `coisos-cuidador-debug-apk`.
+
 ### Entradas, resultado esperado e resultado observado
 
 | Requisito | Entrada e ação | Resultado esperado e observado | Teste |
@@ -140,7 +161,7 @@ Os prints 01 a 11 são da versão anterior à correção, e o 12 é da versão c
 | Item | Situação | Impacto |
 |---|---|---|
 | TimescaleDB real no CI | Coberto com banco simulado; o banco real só no ensaio (2.2) | Um erro de SQL só aparece no ensaio |
-| Testes instrumentados do app | Não há; a interface é verificada no ensaio (2.1, 2.3, 2.4) | Regressões de tela dependem de teste manual |
+| Testes instrumentados do app | A lógica do app tem 15 testes de unidade; a interface (Compose) só é verificada no ensaio (2.0, 2.1, 2.3, 2.4) | Regressões de layout dependem de teste manual |
 | TLS no ESP32 | Não implementado (D17) | Leituras sintéticas podem ser lidas no caminho |
 | Recuperar o estado e o comando pendente depois de reiniciar a API | Não implementado | Depois do reinício, o estado recomeça vazio até chegarem novos lotes |
 

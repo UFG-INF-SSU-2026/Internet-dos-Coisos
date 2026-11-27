@@ -26,7 +26,7 @@ O cuidador acompanha pelo app ou pelo painel web e reconhece o alerta, o que sil
 |---|---|---|
 | **1. Aplicativo móvel** | Código em [`mobile/`](mobile/) (Kotlin + Compose) · instruções em [`mobile/README.md`](mobile/README.md) · APK em [`apk/`](apk/) · contrato em [`contrato/app-v1.json`](contrato/app-v1.json) | ✅ APK gerado e testado no emulador ([ensaio 2.0](docs/verificacao.md), prints em [`docs/evidencias/app/`](docs/evidencias/app/)); falta o teste no celular real |
 | **2. Persistência de dados** (banco temporal) | [`api/armazenamento.py`](api/armazenamento.py), esquema em [`api/sql/timescaledb.sql`](api/sql/timescaledb.sql) (3 hypertables) · verificação em [`scripts/verificar_banco.py`](scripts/verificar_banco.py) | ✅ TimescaleDB |
-| **3. Testes automatizados** | [`testes/`](testes/), 44 testes · comandos, módulos e resultados em [`docs/verificacao.md`](docs/verificacao.md) · CI em [`../.github/workflows/testes.yml`](../.github/workflows/testes.yml) com relatório JUnit | ✅ unitários e de API |
+| **3. Testes automatizados** | [`testes/`](testes/), 44 testes da API + 15 testes de unidade do app ([`mobile/app/src/test/`](mobile/app/src/test/)) · comandos, módulos e resultados em [`docs/verificacao.md`](docs/verificacao.md) · CI em [`../.github/workflows/testes.yml`](../.github/workflows/testes.yml) com relatório JUnit | ✅ unitários e de API |
 | **4. Documentação técnica de implantação** | [`docs/implantacao.md`](docs/implantacao.md): versões, credenciais de teste, banco, ordem de execução e APK | ✅ |
 | **5. Relatório técnico (artigo)** | [`docs/artigo.pdf`](docs/artigo.pdf), 14 páginas · fonte LaTeX em [`docs/artigo/artigo.tex`](docs/artigo/artigo.tex) · números de [`scripts/avaliar.py`](scripts/avaliar.py) | ✅ (resultados do ensaio com o APK entram na versão de 11/12) |
 
@@ -140,7 +140,7 @@ Pendências que serão tratadas até a entrega final de 11/12/2026:
 |---|---|---|
 | TLS no ESP32 | As leituras sintéticas do ESP32 trafegam sem sigilo até a borda da Cloudflare. O HMAC garante integridade e autenticidade, e há replay possível dentro da janela de 120 s | O handshake TLS falhou no sketch do grupo no Wokwi (D17). O app, que é o canal do usuário, já usa HTTPS validado |
 | Teste de integração com TimescaleDB real no CI | Um erro de SQL só aparece no ensaio manual | O CI usa banco simulado; subir TimescaleDB no Actions exige serviço Docker e credenciais de teste |
-| Testes instrumentados do app | Regressões na interface dependem do ensaio manual | O comportamento de API do app está coberto por `test_app_mobile.py`; os testes instrumentados exigem emulador no CI |
+| Testes instrumentados do app | Regressões de layout dependem do ensaio manual | A lógica do app tem 15 testes de unidade na JVM (no CI); o comportamento de API do app está em `test_app_mobile.py`; os testes de interface exigiriam emulador no CI |
 | Recuperar o estado e o comando pendente depois de reiniciar a API | Depois do reinício, o estado recomeça vazio até chegarem novos lotes, e um comando pendente se perde | O histórico está no banco, mas o estado corrente e a fila ficam em memória (D13, D19) |
 
 Outras limitações declaradas:
