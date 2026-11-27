@@ -111,6 +111,9 @@ jobs:
           target: google_apis
           arch: x86_64
           profile: pixel_2
+          force-avd-creation: true
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -camera-back none
           script: cd marco4/mobile && ./gradlew connectedDebugAndroidTest --console=plain
 
       - name: Guardar relatório instrumentado do app
