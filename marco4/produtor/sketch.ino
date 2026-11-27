@@ -276,7 +276,7 @@ void setup() {
   Serial.println("\n=== MARCO 3 | ESP32 -> HTTP assinado -> API ===");
   Serial.println("Cenarios de teste no Serial: 0=manual 1=normal 2=alerta 3=sem sensor 4=movimento a=automatico f=falha de rede");
   Serial.printf("API: %s\n", API_BASE_URL);
-  if (strstr(API_BASE_URL, "COLE-AQUI")) Serial.println("ATENCAO: cole em config.h a URL do tunel");
+  if (strstr(API_BASE_URL, "trycloudflare")) Serial.println("ATENCAO: o tunel redireciona http para https (301); use http://host.wokwi.internal:5000 (D33)");
   snprintf(bootId, sizeof(bootId), "%08lX", (unsigned long)esp_random());
   Serial.printf("bootId: %s\n", bootId);
 

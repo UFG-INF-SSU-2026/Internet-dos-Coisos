@@ -70,11 +70,13 @@ Execute nesta ordem. Os passos 2 e 3 ficam com terminais abertos.
 | 1 | Banco TimescaleDB | Criar o serviço e colocar `DATABASE_URL` no `.env` (seção 5) → `.\.venv\Scripts\python.exe marco4\scripts\verificar_banco.py` | `[OK] TimescaleDB versao` e as 3 hypertables |
 | 2 | API (Terminal 1) | `.\.venv\Scripts\python.exe marco4\api\app.py` | `curl.exe http://127.0.0.1:5000/api/saude` devolve `"versao": "4.0"` e `"banco_configurado": true` |
 | 3 | Túnel (Terminal 2) | `cloudflared tunnel --url http://127.0.0.1:5000` | Mostra `https://<nome>.trycloudflare.com`; `curl.exe https://<nome>.trycloudflare.com/api/saude` devolve 200 |
-| 4 | ESP32 no Wokwi | Copiar `sketch.ino`, `diagram.json`, `libraries.txt` e o `config.h` **local** para uma cópia **privada** do projeto Wokwi; em `config.h`, `API_BASE_URL = "http://<nome>.trycloudflare.com"` | Serial Monitor mostra `lote N: HTTP 200` |
+| 4 | ESP32 no Wokwi do VS Code | Em `config.h`, `API_BASE_URL = "http://host.wokwi.internal:5000"`; depois `pio run` em `marco4/produtor` e **F1 → Wokwi: Start Simulator** (abaixo) | Serial Monitor mostra `lote N: HTTP 200` |
 | 5 | App Android | Instalar `marco4/apk/coisos-cuidador.apk` (seção 6), informar `https://<nome>.trycloudflare.com`, `cuidador01` e a senha | Tela de estado mostra NORMAL ou ATENCAO e "ESP32 online" |
 | 6 | Painel web (opcional) | http://127.0.0.1:5000/login | Gráfico e estado atualizando por WebSocket |
 
-A URL do túnel muda a cada vez que o `cloudflared` reinicia. Quando mudar, atualize o `config.h` do Wokwi e a URL na tela de login do app.
+A URL do túnel muda a cada vez que o `cloudflared` reinicia. Quando mudar, atualize a URL na tela de login do app.
+
+> **Por que o ESP32 não usa o túnel (D33):** desde 27/11/2026 o túnel rápido responde `301` a todo `http://`, e o sketch não completa HTTPS (D17). Pelo Wokwi do VS Code, o ESP32 alcança a API da própria máquina em `host.wokwi.internal`, e o tráfego não sai do computador. O projeto no wokwi.com só funcionaria com HTTPS no sketch.
 
 **Wokwi no VS Code (alternativa ao wokwi.com, exige a licença da extensão):**
 1. Com o PlatformIO instalado, rode `pio run` em `marco4/produtor`. O firmware sai em `.pio/build/esp32/`.
