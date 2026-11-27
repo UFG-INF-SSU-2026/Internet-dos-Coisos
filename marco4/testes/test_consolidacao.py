@@ -10,6 +10,7 @@ import secrets
 import sys
 import tempfile
 import time
+from datetime import datetime, timezone
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -29,6 +30,9 @@ class FakeHistorico:
     descartadas = 0
     def __init__(self):
         self.gravacoes = []
+        self.snapshot = None
+    def restaurar_estado(self, patient_id, limite=10):
+        return self.snapshot
     def gravar_lote(self, device_id, patient_id, lote_id, leituras, estado):
         self.gravacoes.append(('lote', lote_id))
         return True
@@ -99,6 +103,45 @@ class TestarPersistenciaIntegrada(unittest.TestCase):
         self.assertEqual(r.status_code,200)
         self.assertEqual(r.json()['origem'],'TimescaleDB')
         self.assertEqual(r.json()['leituras'][0]['loteId'],'abc')
+
+    def test_reinicio_reconstroi_estado_e_comando_pendente(self):
+        agora = datetime.now(timezone.utc).isoformat()
+        self.hist.snapshot = {
+            'leituras': [
+                {'recebidoEmUtc': agora, 'loteId': f'restaurado-{i}',
+                 'fc': 120.0, 'g': 1.0}
+                for i in range(10)
+            ],
+            'historico': [
+                {'horaUtc': agora, 'estado': 'ATENCAO', 'razao': 'condicao_persistiu',
+                 'fcMedia': 120.0, 'movimento': 'REST',
+                 'coberturaFc': 1.0, 'coberturaMov': 1.0}
+            ],
+            'comando': {
+                'criadoEmUtc': agora, 'commandId': 'cmd-persistido',
+                'tipo': 'RECONHECER_ALERTA', 'status': 'PENDENTE',
+                'emitidoPor': 'cuidador01', 'confirmadoEmUtc': None,
+                'canal': 'restaurado',
+            },
+        }
+
+        anterior = self.client
+        anterior.__exit__(None, None, None)
+        with patch.object(app, 'HistoricoTemporal', return_value=self.hist):
+            novo = TestClient(app.create_app())
+        novo.__enter__()
+        self.addCleanup(novo.__exit__, None, None, None)
+        self.client = novo
+
+        self.client.post('/login', data={'usuario': 'cuidador01', 'senha': '123456'})
+        resposta = self.client.get('/api/pacientes/patient-0042/estado')
+        self.assertEqual(resposta.status_code, 200)
+        estado = resposta.json()
+        self.assertEqual(estado['estado'], 'ATENCAO')
+        self.assertTrue(estado['online'])
+        self.assertEqual(estado['comando']['commandId'], 'cmd-persistido')
+        self.assertEqual(estado['comando']['status'], 'PENDENTE')
+        self.assertEqual(len(estado['historicoLeituras']), 10)
 
     def test_grava_atuacoes_no_segundo_ciclo(self):
         self.client.post('/login', data={'usuario':'cuidador01','senha':'123456'})
