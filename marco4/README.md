@@ -28,7 +28,7 @@ O cuidador acompanha pelo app ou pelo painel web e reconhece o alerta, o que sil
 | **2. Persistência de dados** (banco temporal) | [`api/armazenamento.py`](api/armazenamento.py), esquema em [`api/sql/timescaledb.sql`](api/sql/timescaledb.sql) (3 hypertables) · verificação em [`scripts/verificar_banco.py`](scripts/verificar_banco.py) | ✅ TimescaleDB |
 | **3. Testes automatizados** | [`testes/`](testes/), 44 testes da API + 15 testes de unidade do app ([`mobile/app/src/test/`](mobile/app/src/test/)) · comandos, módulos e resultados em [`docs/verificacao.md`](docs/verificacao.md) · CI em [`../.github/workflows/testes.yml`](../.github/workflows/testes.yml) com relatório JUnit | ✅ unitários e de API |
 | **4. Documentação técnica de implantação** | [`docs/implantacao.md`](docs/implantacao.md): versões, credenciais de teste, banco, ordem de execução e APK | ✅ |
-| **5. Relatório técnico (artigo)** | [`docs/artigo.pdf`](docs/artigo.pdf), 14 páginas · fonte LaTeX em [`docs/artigo/artigo.tex`](docs/artigo/artigo.tex) · números de [`scripts/avaliar.py`](scripts/avaliar.py) | ✅ (resultados do ensaio com o APK entram na versão de 11/12) |
+| **5. Relatório técnico (artigo)** | [`docs/artigo.pdf`](docs/artigo.pdf), 15 páginas · fonte LaTeX em [`docs/artigo/artigo.tex`](docs/artigo/artigo.tex) · números de [`scripts/avaliar.py`](scripts/avaliar.py) | ✅ com o ensaio do app no emulador (Seção 6.6); o ensaio com celular, Wokwi e banco entra na versão de 11/12 |
 
 ### O app em funcionamento
 
