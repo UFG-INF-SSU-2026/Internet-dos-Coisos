@@ -63,13 +63,16 @@ class Monitor:
     def registrar_movimento_app(self, intensidade, agora):
         """Leitura do celular: intensidade = |aceleração - 1 g|, em g.
 
-        Só reavalia se o ESP32 já mandou leituras; sem FC não há o que suprimir.
+        Só reavalia com leituras recentes do ESP32: sem FC não há o que suprimir, e
+        janela velha não pode tirar o paciente de DADOS_INSUFICIENTES.
+        A leitura do celular pode suprimir ou encerrar um alerta, mas não conta
+        para a persistência de entrada: o alerta continua exigindo 2 lotes do ESP32.
         """
         mov = 'REST' if intensidade <= G_REST_TOLERANCIA else 'ACTIVE'
         self.mov_app = (mov, agora)
-        if self.ultimo_lote_em is None:
+        if self.ultimo_lote_em is None or agora - self.ultimo_lote_em > SILENCIO_S:
             return None
-        return self.avaliar(agora)
+        return self.avaliar(agora, conta_persistencia=False)
 
     def calcular(self, agora=None):
         """Média, movimento predominante e cobertura das janelas."""
@@ -93,7 +96,7 @@ class Monitor:
             'coberturaMov': round(len(movs) / JANELA_MOV, 2),
         }
 
-    def avaliar(self, agora):
+    def avaliar(self, agora, conta_persistencia=True):
         """Aplica a regra; devolve o evento de transição ou None se o estado não mudou."""
         r = self.resumo = self.calcular(agora)
         if r['coberturaFc'] < COBERTURA_MINIMA or r['coberturaMov'] < COBERTURA_MINIMA:
@@ -111,7 +114,10 @@ class Monitor:
             return None
 
         condicao = r['fcMedia'] > FC_LIMIAR_ENTRADA and repouso
-        self.persistencia = self.persistencia + 1 if condicao else 0
+        if not condicao:
+            self.persistencia = 0
+        elif conta_persistencia:
+            self.persistencia += 1
         if self.persistencia >= AVALIACOES_PARA_ENTRAR and self._tempo_minimo(agora):
             return self._transitar('ATENCAO', 'condicao_persistiu', agora)
         return self._transitar('NORMAL', 'janela_com_cobertura', agora)

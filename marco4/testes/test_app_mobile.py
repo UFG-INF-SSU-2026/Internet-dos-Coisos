@@ -205,6 +205,27 @@ class TestarRegraContexto(unittest.TestCase):
         self.assertIsNone(m.registrar_movimento_app(0.9, 0))
         self.assertIsNone(m.estado)
 
+    def test_leitura_do_celular_nao_acelera_o_alerta(self):
+        """A persistência de 2 avaliações conta só lotes do ESP32."""
+        m = Monitor()
+        for t in (3, 6, 9):                          # janela cheia com FC 120 em repouso
+            m.adicionar([{'fc': 120, 'g': 1.0}] * 3, t)
+        self.assertEqual(m.persistencia, 1)
+        for t in (10, 11, 13):                       # celular parado: avalia, mas não conta
+            m.registrar_movimento_app(0.02, t)
+        self.assertNotEqual(m.estado, 'ATENCAO')
+        m.adicionar([{'fc': 120, 'g': 1.0}] * 3, 13)  # 2º lote, depois do tempo mínimo de 4 s
+        self.assertEqual(m.estado, 'ATENCAO')
+
+    def test_celular_nao_tira_de_dados_insuficientes_com_esp32_em_silencio(self):
+        m = Monitor()
+        for t in (3, 6, 9, 12):
+            m.adicionar([{'fc': 80, 'g': 1.0}] * 3, t)
+        m.verificar_silencio(30)
+        self.assertEqual(m.estado, 'DADOS_INSUFICIENTES')
+        self.assertIsNone(m.registrar_movimento_app(0.02, 31))
+        self.assertEqual(m.estado, 'DADOS_INSUFICIENTES')
+
     def test_contexto_vale_por_poucos_segundos(self):
         m = Monitor()
         m.registrar_movimento_app(0.9, 0)
