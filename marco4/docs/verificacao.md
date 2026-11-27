@@ -97,19 +97,19 @@ Este ensaio **não substitui** os itens 2.1 a 2.4 com celular real, Wokwi e Time
 | Senha errada pelo túnel HTTPS | "Usuário ou senha incorretos" | `03-senha-errada.png` |
 | URL com `http://` | Recusada antes de qualquer requisição: "Use a URL https:// do túnel" | `11-http-recusado.png` |
 | Login correto, sem ESP32 | `SEM_DADOS`, "ESP32 sem contato recente", botão desativado | `04-sem-dados.png` |
-| FC 120 em repouso | `ATENCAO` cerca de 15 s depois do início dos lotes; "ESP32 online"; botão ativo | `05-atencao.png` |
-| Tocar **Reconhecer alerta** | No lote seguinte, o ESP32 simulado recebeu `cmd-735a593a` e respondeu ACK; o app mostrou `EXECUTADO` | `06-reconhecido.png`, linha 15:19:45 do log |
+| FC 120 em repouso | `ATENCAO` 12 s depois do primeiro lote (16:00:17 → 16:00:29 no log); "ESP32 online"; botão ativo | `05-atencao.png` |
+| Tocar **Reconhecer alerta** | No lote seguinte, o ESP32 simulado recebeu `cmd-f5137cd9` e respondeu ACK; o app mostrou `EXECUTADO` no cartão e "Reconhecimento enviado" abaixo do botão | `06-reconhecido.png`, linha 16:00:38 do log |
 | Balançar o celular (0,83 g) | `NORMAL`, `Movimento: ACTIVE (fonte: celular)`, botão desativado; no log, a passagem de `ATENCAO` para `NORMAL` acontece entre dois lotes (3 s) | `07-contexto-movimento.png` |
 | Parar de balançar | `ATENCAO` de volta com `fonte: esp32` | `08-alerta-volta.png` |
 | Wi-Fi e dados desligados no emulador | "Erro de rede … Mostrando o último estado recebido"; envio do acelerômetro falha; nenhum travamento | `09-sem-rede.png` |
 | Rede religada | Atualização volta sozinha, sem novo login | `10-rede-voltou.png` |
-| ESP32 simulado encerrado | `DADOS_INSUFICIENTES` e "ESP32 sem contato recente"; campos vazios aparecem como "—" | `12-apos-correcao.png` |
+| ESP32 simulado encerrado | `DADOS_INSUFICIENTES` e "ESP32 sem contato recente"; botão desativado | `12-sem-esp32.png` |
 
 **Defeitos encontrados e corrigidos no app:**
 - `optString` do `org.json` devolvia o texto `"null"` para campos JSON nulos, e a tela mostrava "Último contato: null" e "enviado (null)". Uma função `texto()` passou a trocar o nulo por "—".
 - A linha abaixo do botão mostrava "Comando … PENDENTE" para sempre, enquanto o cartão já dizia `EXECUTADO`. Agora ela mostra "Reconhecimento enviado (…). Acompanhe o status no cartão", e o status real fica só no cartão.
 
-Os prints 01 a 11 são da versão anterior à correção, e o 12 é da versão corrigida. O APK em `apk/` é o corrigido.
+Os prints foram refeitos com o APK corrigido, o mesmo que está em `apk/`. O defeito do "null" ficou coberto pelo teste `campos_nulos_viram_traco_e_nao_o_texto_null`.
 
 ### 2.1 Fluxo e contexto
 

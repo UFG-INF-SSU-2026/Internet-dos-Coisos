@@ -30,6 +30,15 @@ O cuidador acompanha pelo app ou pelo painel web e reconhece o alerta, o que sil
 | **4. Documentação técnica de implantação** | [`docs/implantacao.md`](docs/implantacao.md): versões, credenciais de teste, banco, ordem de execução e APK | ✅ |
 | **5. Relatório técnico (artigo)** | [`docs/artigo.pdf`](docs/artigo.pdf), 14 páginas · fonte LaTeX em [`docs/artigo/artigo.tex`](docs/artigo/artigo.tex) · números de [`scripts/avaliar.py`](scripts/avaliar.py) | ✅ (resultados do ensaio com o APK entram na versão de 11/12) |
 
+### O app em funcionamento
+
+Prints do ensaio no emulador (Android 37), com a API real exposta pelo túnel HTTPS e o ESP32 simulado por script. Roteiro e resultados no [ensaio 2.0](docs/verificacao.md).
+
+| FC alta em repouso | Alerta reconhecido | Celular em movimento | Sem rede |
+|:-:|:-:|:-:|:-:|
+| <img src="docs/evidencias/app/05-atencao.png" width="180" alt="Estado ATENCAO com FC 120 e movimento REST vindo do ESP32"> | <img src="docs/evidencias/app/06-reconhecido.png" width="180" alt="Comando de reconhecimento EXECUTADO pelo ESP32"> | <img src="docs/evidencias/app/07-contexto-movimento.png" width="180" alt="Estado NORMAL com movimento ACTIVE vindo do celular"> | <img src="docs/evidencias/app/09-sem-rede.png" width="180" alt="Erro de rede mantendo o último estado recebido"> |
+| `ATENCAO`; o botão fica ativo | O ESP32 silencia o buzzer e devolve o ACK | O contexto muda e o alerta é encerrado | O app mantém o último estado e volta sozinho |
+
 ### Requisitos mantidos
 
 | Requisito | Onde está |
