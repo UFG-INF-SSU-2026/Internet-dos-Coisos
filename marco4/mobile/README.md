@@ -1,42 +1,61 @@
 # App Android do cuidador (Marco 4)
 
-Kotlin + Jetpack Compose. Sem bibliotecas de rede extras (`HttpURLConnection` + `org.json`).
-O contrato com a API está em [`../contrato/app-v1.json`](../contrato/app-v1.json).
+Kotlin + Jetpack Compose. O app continua sendo o segundo produtor do sistema: o acelerômetro do celular envia o contexto de movimento para a mesma fila FIFO usada pelo ESP32.
+O contrato com a API está em [\`../contrato/app-v1.json\`](../contrato/app-v1.json).
+
+## Painel Android
+
+A tela nativa consome a mesma fonte de verdade usada pelo painel web, \`GET /api/pacientes/{id}/estado\`, com polling REST a cada 2 segundos (decisão D25). O painel web usa WebSocket; o Android reflete a atualização no próximo ciclo de consulta.
+
+O painel do app exibe:
+- Estado e contato recente do ESP32.
+- FC média, movimento e origem do contexto (ESP32/celular).
+- Cobertura das janelas de frequência cardíaca e movimento.
+- Lotes recebidos e indicadores da fila FIFO (pendentes, enfileirados, processados e capacidade).
+- Gráfico recente de frequência cardíaca, com linha de referência tracejada em 100 bpm.
+- Ciclo do comando do cuidador (\`PENDENTE → ENTREGUE → EXECUTADO\`), com botão desabilitado enquanto existir comando não executado.
+- Últimas transições de estado e últimos lotes processados.
+- Estado do TimescaleDB, erros/gravações não persistidas e indicadores do segundo produtor Android.
+- Consulta manual ao endpoint de histórico temporal.
+
+## Arquivos
 
 | Arquivo | Papel |
 |---|---|
-| `Api.kt` | Login → token Bearer; estado; reconhecer alerta; envio do movimento. Só aceita `https://`. |
-| `Movimento.kt` | Acelerômetro: pico de \|aceleração/9,81 − 1\| (em g) entre dois envios. |
-| `MainActivity.kt` | ViewModel (consulta a cada 2 s, envio do movimento a cada 2 s) e as telas de login e de estado. |
+| \`Api.kt\` | Login Bearer, estado, histórico, reconhecer alerta e envio de movimento; somente HTTPS |
+| \`Logica.kt\` | Intensidade do acelerômetro e conversão/testabilidade da resposta da API |
+| \`Movimento.kt\` | Acelerômetro: pico de \`|aceleração/9,81 − 1|\` (em g) entre envios |
+| \`MainActivity.kt\` | ViewModel, polling, envio do segundo produtor e painel Compose |
+| \`LogicaTest.kt\` | Testes JVM de sensor, URL, payload, estado, fila, comando e histórico |
 
 ## Segurança
 
-- Nenhuma chave no APK. O usuário e a senha do cuidador geram um token assinado pela API, que expira em 8 h e fica só em memória.
-- `usesCleartextTraffic="false"`: o app não fala HTTP. A URL do túnel Cloudflare é `https://` e o Android valida o certificado com as CAs do sistema.
-- Resposta 401 (token expirado ou inválido) volta para a tela de login.
+- Nenhuma chave fica no APK. Usuário e senha geram token assinado pela API, válido por 8 h e mantido em memória.
+- \`usesCleartextTraffic="false"\`: só HTTPS. O Android valida o certificado com as CAs do sistema.
+- Resposta 401 (token expirado/inválido) retorna à tela de login.
+- A autorização de acesso ao paciente continua centralizada na API.
 
 ## Como compilar e gerar o APK
 
-Versões: Gradle 9.9.3 (wrapper no repositório), AGP 9.5.3 com Kotlin embutido, plugin Compose 2.4.21, Compose BOM 2026.09.00, `compileSdk`/`targetSdk` 37 (SDK Platform 37.0), `minSdk` 26.
+Versões: Gradle 9.9.3 (wrapper), AGP 9.5.3, plugin Compose 2.4.21, Compose BOM 2026.09.00, \`compileSdk\`/\`targetSdk\` 37 e \`minSdk\` 26.
 
-1. Android Studio → **Open** → pasta `marco4/mobile`. O Studio cria o `local.properties` com o caminho do SDK.
-2. Espere o *Gradle sync*. Não atualize o Compose BOM para 2026.11.x sem instalar a SDK Platform 37.1 ou mais nova (o Compose 1.13 exige).
-3. **Build → Build App Bundle(s) / APK(s) → Build APK(s)**, ou pela linha de comando, em `marco4/mobile`:
-   ```powershell
-   $env:JAVA_HOME = 'C:\Program Files\Android\Android Studio\jbr'
-   .\gradlew.bat assembleDebug
-   ```
-4. Copie `app/build/outputs/apk/debug/app-debug.apk` para `marco4/apk/coisos-cuidador.apk` e faça commit.
+1. Android Studio → **Open** → pasta \`marco4/mobile\` e aguarde o Gradle Sync.
+2. Execute os testes: \`./gradlew testDebugUnitTest\`.
+3. Gere o APK: \`./gradlew assembleDebug\`.
+4. O APK fica em \`app/build/outputs/apk/debug/app-debug.apk\`.
 
-## Como usar na demonstração
+## Demonstração
 
-1. Suba banco → API → túnel (`cloudflared tunnel --url http://127.0.0.1:5000`) → Wokwi.
-2. No app, cole a URL `https://….trycloudflare.com`, entre com `cuidador01` e a senha do `.env`.
-3. Cenário de FC alta no Wokwi: o estado vai para **ATENCAO** e o botão **Reconhecer alerta** fica ativo.
-4. Balance o celular: o movimento passa a vir do celular (`fonte: celular`) e o alerta de FC alta é suprimido ou encerrado (`razao = movimento_no_celular`).
+1. Suba banco → API → túnel Cloudflare → Wokwi.
+2. Entre no app com a URL HTTPS, o usuário \`cuidador01\` e a senha local do cuidador.
+3. Gere FC alta em repouso no Wokwi e observe o estado \`ATENCAO\`.
+4. Reconheça o alerta: o ESP32 deve silenciar o buzzer e devolver ACK; o status do comando aparece no próximo polling.
+5. Balance o celular: o segundo produtor informa movimento e o contexto pode suprimir o alerta de FC alta.
+6. Consulte o histórico temporal para verificar as leituras disponíveis no banco.
 
 ## Limitações conhecidas
 
-- O app faz polling a cada 2 s (não usa o WebSocket do painel).
-- O acelerômetro continua ligado enquanto o app está aberto, inclusive em segundo plano. Em produção, isso iria para um serviço em primeiro plano.
-- Testes de unidade na JVM: `.\gradlew.bat testDebugUnitTest` (15 testes em `app/src/test`, sobre `Logica.kt`). Não há testes instrumentados de interface; os comportamentos de API do app estão cobertos em `marco4/testes/test_app_mobile.py`.
+- O app faz polling a cada 2 s, não WebSocket. A atualização pode ocorrer até um ciclo depois do painel web.
+- O acelerômetro permanece ativo enquanto o app está aberto; em produção, avaliar serviço em primeiro plano.
+- O histórico persistido é consultado manualmente; o painel de estado atualiza no polling.
+- Testes JVM não substituem testes instrumentados nem ensaio em celular físico.
