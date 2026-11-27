@@ -14,7 +14,7 @@ Os quatro apontamentos já foram implementados no commit `f59a370` (06/11). Falt
 | Melhorar a simulação | Cenários `0–4`, `a` e `f` no `sketch.ino`, com modo local em caso de falha | Serial Monitor e painel (vídeo) | Atendido |
 | Transformar em fila | `asyncio.Queue` com um único consumidor, deduplicação e erro 503 quando enche | `test_fila_evidencia_ordem_e_contadores`, `test_fila_processa_e_preserva_estado` | Atendido |
 
-- [ ] Colar a tabela acima no `marco4/README.md`
+- [x] Colar a tabela acima no `marco4/README.md` (`6cc87df`)
 
 ## Trilha A: app Android (a mais crítica)
 
@@ -47,26 +47,33 @@ Código em `marco4/mobile` (Kotlin + Compose). O passo a passo para compilar est
 - [x] CI com caminhos `marco4/`, todos os módulos (inclusive `TestarCredenciaisPrivadas`) e relatório JUnit como artefato (`b6aadae`)
 - [x] CI verde em Python 3.10 e 3.12 (42 testes)
 
-## Trilha C: documentação e evidências
+## Trilha C: documentação e evidências (`395c8e1`, `386e895`, `6cc87df`)
 
-- [ ] `marco4/README.md` reescrito para o Marco 4, apontando para cada entrega
-  - [ ] As três tabelas no estilo do swifties
-  - [ ] A tabela de feedback (seção 0)
-  - [ ] Link do relatório JUnit do CI
-- [ ] `marco4/docs/implantacao.md`
-  - [ ] Versões (Python, FastAPI, TimescaleDB, cloudflared, Android)
-  - [ ] Ordem de execução: banco → API → túnel → Wokwi → app
-  - [ ] Credenciais de teste: como gerar com `gerar_config.py`, sem publicar a senha
-  - [ ] Configuração do banco (`DATABASE_URL`, `sql/timescaledb.sql`)
-- [ ] `marco4/docs/verificacao.md` com as 4 verificações do PDF, no formato do pequi
-- [ ] Limitações declaradas
-  - [ ] O ESP32 continua em HTTP com HMAC, porque o Wokwi não completa HTTPS (decisão D17)
-  - [ ] A chave versionada em 16/10 já foi trocada
-  - [ ] O app faz polling, não WebSocket
-  - [ ] O celular do cuidador faz o papel do sensor de movimento do paciente na demonstração
-- [ ] Declaração de uso de IA
-- [ ] Contribuições individuais dos 4 integrantes
-- [ ] Atualizar `docs/decisoes.md` com as decisões do Marco 4 (token itsdangerous, contexto de 6 s, limites de atraso de 10 s e 5 s)
+- [x] `marco4/README.md` reescrito para o Marco 4, apontando para cada entrega
+  - [x] As três tabelas no estilo do swifties (itens obrigatórios, requisitos mantidos, verificações → evidência)
+  - [x] A tabela de feedback (seção 0)
+  - [x] Link do relatório JUnit do CI
+  - [x] README da raiz aponta para o Marco 4
+  - [ ] Atualizar a situação dos itens 1 (APK) e 5 (artigo) quando ficarem prontos
+- [x] `marco4/docs/implantacao.md`
+  - [x] Versões (Python, FastAPI, TimescaleDB, cloudflared, Android)
+  - [x] Ordem de execução: banco → API → túnel → Wokwi → app
+  - [x] Credenciais de teste: como gerar com `gerar_config.py`, sem publicar a senha
+  - [x] Configuração do banco (`DATABASE_URL`, `sql/timescaledb.sql`)
+- [x] `marco4/docs/verificacao.md` com as 4 verificações do PDF, no formato do pequi
+  - [x] Evidência da suíte em `docs/evidencias/testes-api.txt`
+  - [ ] Preencher a coluna **Registro** do ensaio completo (seção 2) durante o ensaio
+- [x] Limitações declaradas (segurança, conectividade, desempenho, energia, simulação, dados pessoais)
+  - [x] O ESP32 continua em HTTP com HMAC, porque o Wokwi não completa HTTPS (decisão D17)
+  - [x] A chave versionada em 16/10 já foi trocada (conferido: a chave do `.env` atual é diferente)
+  - [x] O app faz polling, não WebSocket
+  - [x] O celular do cuidador faz o papel do sensor de movimento do paciente na demonstração
+- [x] Declaração de uso de IA (Marco 4)
+  - [ ] O grupo completa a linha das ferramentas usadas nos marcos anteriores
+- [ ] Contribuições individuais dos 4 integrantes (a tabela existe no `marco4/README.md`; cada um preenche a sua)
+- [x] Atualizar `docs/decisoes.md` com as decisões do Marco 4 (D23 a D31)
+- [x] Diagrama atualizado com o app (`docs/arquitetura.mmd`, renderizado no README)
+  - [ ] Regenerar `docs/visuais/arquitetura-final.svg` a partir do `.dot` (precisa do Graphviz: `dot -Tsvg arquitetura-final.dot -o arquitetura-final.svg`)
 
 ## Trilha D: artigo de 10 a 15 páginas
 
