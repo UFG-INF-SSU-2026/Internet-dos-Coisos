@@ -1,4 +1,4 @@
-# Marco 3 — Registro de decisões
+# Marcos 3 e 4 — Registro de decisões
 
 Os requisitos gerais do Marco 3 foram passados por e-mail e os detalhes foram conversados em aula.
 Este arquivo registra **o que perguntamos, o que foi respondido e o que decidimos**, com o motivo.
@@ -85,3 +85,27 @@ No Marco 2 o cuidador só consumia. No Marco 3 ele também produz, e o ESP32 tam
 **Correção de segurança de D17:** o Wokwi suporta HTTPS em geral. O projeto específico teve dificuldade no handshake TLS e, por isso, utiliza HTTP com HMAC. HMAC garante autenticidade/integridade, **não confidencialidade**. O timestamp rejeita assinaturas fora da janela de 120 segundos, mas **um atacante ainda pode repetir mensagens dentro da janela**; a deduplicação por `loteId` reduz reprocessamentos recentes de lotes. A chave deixou de ser versionada na consolidação da branch `marco3-enxuto`.
 
 **Nota sobre streaming:** o ESP32 gera leituras continuamente e envia lotes; a API mantém uma fila assíncrona e envia estados pelo WebSocket. Isto não é Kafka, RabbitMQ ou exatamente-once delivery. Um único worker FastAPI deve ser usado para preservar fila e estado.
+
+
+## Marco 4: app Android como segundo produtor
+
+| ID | Decisão | Motivo e consequência |
+|---|---|---|
+| D23 | App Android nativo em Kotlin + Jetpack Compose, sem bibliotecas de rede extras (`HttpURLConnection` + `org.json`) | O enunciado exige app instalável (página web/PWA não vale). Menos dependências para o Gradle baixar e para o grupo explicar. |
+| D24 | Login do app gera um token Bearer assinado com `APP_SECRET_KEY` (itsdangerous), com usuário e paciente, válido por 8 h | Nenhuma chave dentro do APK, e o servidor não guarda sessão para o app. **Consequência:** um token não pode ser revogado antes de vencer, a não ser trocando `APP_SECRET_KEY`, o que derruba todos os tokens. |
+| D25 | O app consulta o estado a cada 2 s em vez de usar o WebSocket do painel | Mais simples de implementar e testar no prazo; 2 s é suficiente diante das janelas de 10 s da regra. O painel web continua com WebSocket (D18). |
+| D26 | O acelerômetro do celular é o segundo produtor: envia a cada 2 s o pico de \|a/9,81 − 1\| (em g) desde o último envio | Usa um sensor do celular com função no cenário. O pico, e não a média, não deixa uma sacudida curta se perder. O limiar é o mesmo do MPU6050: até 0,15 g é repouso. |
+| D27 | Mudança de contexto: movimento `ACTIVE` vindo do celular nos últimos 6 s prevalece sobre o MPU6050 | Paciente em movimento não gera alerta de FC alta (a FC sobe com esforço). Só o `ACTIVE` sobrescreve: o celular parado não anula movimento detectado pelo ESP32. Depois de 6 s sem leitura do celular, o contexto expira e vale de novo só o ESP32. A transição causada pelo celular fica registrada como `razao = movimento_no_celular`. |
+| D28 | Validade da leitura do celular: atrasada há mais de 10 s, adiantada mais de 5 s ou mais antiga que a última aceita recebe 422 e não entra na fila | Leitura velha não pode mudar o contexto atual. O tempo usado é o de captura (`capturadoEmMs`), não o de chegada. As descartadas são contadas em `celular.descartadas`. |
+| D29 | As leituras do celular entram na mesma fila FIFO do ESP32, com consumidor único | Dois produtores e uma ordem única de processamento, sem trava. A resposta HTTP espera o processamento, como no ciclo 1. |
+| D30 | O app só usa HTTPS (`usesCleartextTraffic=false`), e o Android valida o certificado do túnel | Canal protegido com validação da identidade do serviço, como pede o enunciado. O ESP32 continua com HTTP + HMAC (D17), uma limitação declarada. |
+| D31 | As leituras do celular não são gravadas no TimescaleDB; só as transições que elas causam | O valor do movimento não é usado depois da janela de 6 s. A transição com `movimento_no_celular` em `eventos_estado` já comprova o efeito do contexto. |
+
+### Quem produz e quem consome no Marco 4
+
+| Ciclo | Produtor | Mensagem | Consumidor |
+|---|---|---|---|
+| 1 | ESP32 | lote de leituras (FC, g) | API → fila → regra → painel e app |
+| 1 | **App Android** | **intensidade do movimento** | **API → mesma fila → regra (contexto)** |
+| 2 | Cuidador (painel **ou app**) | comando `RECONHECER_ALERTA` | ESP32 |
+| 2 | ESP32 | ACK | API → painel e app |

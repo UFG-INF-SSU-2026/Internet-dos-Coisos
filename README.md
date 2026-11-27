@@ -6,6 +6,20 @@ O sistema simula o acompanhamento de **frequência cardíaca (FC)** e **moviment
 
 > **Escopo:** protótipo acadêmico com dados sintéticos, sem finalidade diagnóstica, médica ou clínica. Não introduza dados de pacientes reais.
 
+## Marco 4 (entrega de 27/11/2026): versão atual
+
+O Marco 4 acrescenta o **app Android do cuidador** como segundo produtor: o acelerômetro do celular cria a mudança de contexto que suprime o alerta de FC alta. Ele também traz o token do app, testes novos e o CI com relatório JUnit.
+
+| Entrega | Onde está |
+|---|---|
+| Visão geral, itens obrigatórios, verificações, feedback do Marco 3, limitações, uso de IA e contribuições | [`marco4/README.md`](marco4/README.md) |
+| Implantação (versões, credenciais de teste, banco, ordem de execução, APK) | [`marco4/docs/implantacao.md`](marco4/docs/implantacao.md) |
+| Verificação (testes, evidências e ensaio) | [`marco4/docs/verificacao.md`](marco4/docs/verificacao.md) |
+| App Android e APK | [`marco4/mobile/`](marco4/mobile/), [`marco4/apk/`](marco4/apk/) |
+| Plano e checklist da entrega | [`PLANO_MARCO4.md`](PLANO_MARCO4.md) |
+
+O restante desta página descreve o Marco 3, que continua em [`marco3/`](marco3/).
+
 ## Equipe
 
 - Felipe Alves — 202105026
