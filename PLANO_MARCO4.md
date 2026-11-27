@@ -113,7 +113,7 @@ Código em `marco4/mobile` (Kotlin + Compose). O passo a passo para compilar est
 Vão para o README com impacto e justificativa, como o PDF permite.
 
 - [ ] TLS no ESP32
-- [ ] Teste de integração com TimescaleDB real no CI (teste adicionado no PR #6; aguardando execução do serviço Docker).
-- [x] Testes de unidade do app na JVM (15, no CI com o APK como artefato)
+- [x] Teste de integração com TimescaleDB real no CI (PR #6: integração test_temporal_real.py; CI verde em Python 3.10 e 3.12).
+- [x] Testes de unidade do app na JVM (18, CI verde com APK debug como artefato)
 - [ ] Testes instrumentados de interface do app (2 testes Compose adicionados no PR #6; aguardando CI em emulador).
-- [ ] Recuperar o estado e o comando pendente quando a API reinicia (implementação e teste adicionados no PR #6; aguardando CI/revisão).
+- [x] Recuperar o estado e o comando pendente quando a API reinicia (D35, teste do ciclo de reinício e restauração do TimescaleDB passaram no CI; ensaio manual com banco continua no roteiro 2.5).
