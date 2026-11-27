@@ -1,0 +1,13 @@
+{
+  "_comentario": "Ciclo 1. ESP32 -> API: POST /api/leituras com cabecalhos X-Timestamp e X-Assinatura = hex(HMAC-SHA256(chave, horario + \"\\n\" + \"POST /api/leituras\" + \"\\n\" + corpo)). Um lote a cada 3 s, uma leitura por segundo (a ultima e a mais recente). fc em bpm e g em multiplos da gravidade; null = sensor ausente. loteId = bootId-sequencia. Resposta 200: {\"status\": \"recebido\" | \"duplicado\", \"estado\": \"NORMAL\" | \"ATENCAO\" | \"DADOS_INSUFICIENTES\"}",
+  "deviceId": "esp32-borda-01",
+  "entityId": "patient-0042",
+  "loteId": "AB12CD34-17",
+  "leituras": [
+    {"fc": 118.4, "g": 1.01},
+    {"fc": 121.0, "g": 0.99},
+    {"fc": null, "g": null},
+    {"fc": 119.6, "g": 1.02},
+    {"fc": 120.3, "g": 1.00}
+  ]
+}
