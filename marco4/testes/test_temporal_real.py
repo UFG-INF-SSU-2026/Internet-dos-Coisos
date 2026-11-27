@@ -132,7 +132,7 @@ class TestarTimescaleDBReal(unittest.TestCase):
 
         with patch.dict(os.environ, env):
             with TestClient(create_app()) as client:
-                login = client.post('/login', data={'usuario': 'cuidador01', 'senha': senha})
+                login = client.post('/login', data={'usuario': 'cuidador01', 'senha': senha}, follow_redirects=False)
                 self.assertEqual(login.status_code, 303)
 
                 estado = client.get(f'/api/pacientes/{self.patient}/estado')
