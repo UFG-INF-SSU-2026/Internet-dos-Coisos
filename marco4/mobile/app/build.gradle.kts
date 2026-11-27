@@ -13,6 +13,7 @@ android {
         targetSdk = 37
         versionCode = 1
         versionName = "4.0"
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
     buildTypes {
@@ -43,8 +44,14 @@ dependencies {
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.11.0")
     debugImplementation("androidx.compose.ui:ui-tooling")
 
-    // Testes de unidade na JVM (./gradlew testDebugUnitTest). O org.json do
-    // android.jar é só um esboço fora do aparelho, então os testes usam o real.
+    // Testes unitários da lógica sem Android.
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.json:json:20250517")
+
+    // Testes instrumentados da interface Compose em emulador.
+    androidTestImplementation(platform("androidx.compose:compose-bom:2026.09.00"))
+    androidTestImplementation("androidx.compose.ui:ui-test-junit4")
+    androidTestImplementation("androidx.test.ext:junit:1.3.0")
+    androidTestImplementation("androidx.test:runner:1.7.0")
+    debugImplementation("androidx.compose.ui:ui-test-manifest")
 }
