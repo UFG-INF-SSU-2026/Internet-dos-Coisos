@@ -1,0 +1,14 @@
+flowchart TD
+    S["FC simulada: potenciômetro/cenários + MPU6050"] --> ESP["ESP32 no Wokwi: mede, LED/buzzer e modo local"]
+    ESP -->|"lotes de 3 leituras - POST HTTP assinado"| T["Túnel temporário Cloudflare"]
+    ESP -->|"GET comando + POST ack - HMAC"| T
+    T --> API["FastAPI: valida HMAC, identidade e vínculo"]
+    API --> Q["Fila asyncio.Queue FIFO - 128 lotes"]
+    Q --> W["Consumidor único + regra.py: estado"]
+    W --> DB["TimescaleDB: 3 hypertables - leituras / eventos_estado / comandos"]
+    W --> WS["WebSocket: evento de estado autenticado"]
+    WS --> UI["Painel do cuidador"]
+    DB -->|"GET /api/pacientes/id/historico"| UI
+    UI -->|"POST reconhecer alerta - sessão"| API
+    API -->|"GET do ESP32 retorna comando"| ESP
+    ESP -->|"ACK recebido pela API"| API

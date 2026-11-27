@@ -1,0 +1,24 @@
+{
+  "_comentario": "Marco 4. App Android -> API, sempre pela URL HTTPS do tunel (o Android valida o certificado). Nenhuma chave dentro do APK: o token vem do login do cuidador e vai no cabecalho Authorization: Bearer <token>. O token expira em 8 h; 401 = fazer login de novo; 403 = paciente de outro cuidador.",
+  "login": {
+    "requisicao": "POST /api/app/login",
+    "corpo": {"usuario": "cuidador01", "senha": "<senha do cuidador>"},
+    "resposta200": {"token": "<token assinado>", "tipo": "Bearer", "expiraEmSegundos": 28800, "paciente": "patient-0042"},
+    "resposta401": {"erro": "Usuario ou senha incorretos"}
+  },
+  "leituraMovimento": {
+    "requisicao": "POST /api/app/leituras (Authorization: Bearer <token>)",
+    "_comentario": "Uma leitura a cada 2 s. intensidade = |modulo da aceleracao / 9,81 - 1|, em g (0 = parado; acima de 0,15 = em movimento). capturadoEmMs = System.currentTimeMillis() no instante da medida. A API descarta (422) leitura capturada ha mais de 10 s, com relogio mais de 5 s adiantado ou mais antiga que a ultima aceita.",
+    "corpo": {"entityId": "patient-0042", "intensidade": 0.42, "capturadoEmMs": 1764252000123},
+    "resposta200": {"status": "recebido", "estado": "NORMAL", "movimento": "ACTIVE"},
+    "resposta422": {"erro": "Leitura descartada", "motivo": "atrasada | relogio_adiantado | fora_de_ordem", "atrasoMs": 15000}
+  },
+  "estado": {
+    "requisicao": "GET /api/pacientes/patient-0042/estado (Authorization: Bearer <token>)",
+    "_comentario": "Mesma resposta do painel. Campos novos: resumo.fonteMovimento ('esp32' | 'celular'), resumo.movimentoCelular e o bloco celular {ultimaLeituraUtc, recebidas, descartadas, movimento}."
+  },
+  "reconhecerAlerta": {
+    "requisicao": "POST /api/pacientes/patient-0042/comando (Authorization: Bearer <token>)",
+    "_comentario": "Igual ao painel: 201 cria, 200 devolve o comando ja aberto, 409 se nao ha alerta. O comando registra canal = 'app'."
+  }
+}
