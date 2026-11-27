@@ -1,17 +1,18 @@
-name: Testes Marco 3
+name: Testes Marco 4
 
 on:
   push:
     branches: [main]
     paths:
-      - "marco3/api/**"
-      - "marco3/testes/**"
+      - "marco4/api/**"
+      - "marco4/testes/**"
       - ".github/workflows/testes.yml"
   pull_request:
     paths:
-      - "marco3/api/**"
-      - "marco3/testes/**"
+      - "marco4/api/**"
+      - "marco4/testes/**"
       - ".github/workflows/testes.yml"
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -31,16 +32,29 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
           cache: pip
-          cache-dependency-path: marco3/api/requirements*.txt
+          cache-dependency-path: marco4/api/requirements*.txt
 
       - name: Instalar dependências
-        run: pip install -r marco3/api/requirements-test.txt
+        run: pip install -r marco4/api/requirements-test.txt
 
+      # Todos os módulos, inclusive TestarCredenciaisPrivadas (gerar_config em
+      # pasta temporária) e os testes do app (token, leitura atrasada, contexto).
+      # O pytest roda os testes unittest sem mudança e gera o relatório JUnit.
       - name: Rodar testes
-        working-directory: marco3/testes
+        working-directory: marco4/testes
         run: >
-          python -m unittest -v
-          test_regra
-          test_api
-          test_melhorias
-          test_consolidacao.TestarPersistenciaIntegrada
+          python -m pytest -v
+          --junitxml=relatorio-junit-py${{ matrix.python-version }}.xml
+          test_regra.py
+          test_api.py
+          test_melhorias.py
+          test_consolidacao.py
+          test_app_mobile.py
+
+      - name: Guardar relatório JUnit (evidência)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: relatorio-junit-py${{ matrix.python-version }}
+          path: marco4/testes/relatorio-junit-py${{ matrix.python-version }}.xml
+          retention-days: 90

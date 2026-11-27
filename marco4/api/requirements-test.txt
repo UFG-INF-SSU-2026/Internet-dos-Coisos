@@ -1,2 +1,4 @@
 -r requirements.txt
 httpx>=0.27,<1
+# Marco 4: gera o relatorio JUnit do CI (roda os testes unittest sem mudanca)
+pytest>=8,<10

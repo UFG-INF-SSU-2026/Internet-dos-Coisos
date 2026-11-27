@@ -19,3 +19,4 @@ marco4/mobile/local.properties
 marco4/mobile/.gradle/
 marco4/mobile/build/
 marco4/mobile/app/build/
+marco4/testes/relatorio-junit-*.xml
