@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "author": "Marco 3 - Software para Sistemas Ubiquos",
+  "author": "Marco 4 - Software para Sistemas Ubiquos",
   "editor": "wokwi",
   "parts": [
     {
@@ -32,12 +32,19 @@
       }
     },
     {
+      "type": "chip-sensor-pulso",
+      "id": "pulso1",
+      "top": -105.6,
+      "left": -134.4,
+      "attrs": {}
+    },
+    {
       "type": "wokwi-text",
       "id": "lbl_pot",
       "top": -163.2,
       "left": -268.8,
       "attrs": {
-        "text": "FC simulada - potenciometro - GPIO34",
+        "text": "Coracao simulado - potenciometro - BPM do sensor",
         "fontSize": "13",
         "color": "#c62828"
       }
@@ -149,7 +156,7 @@
       "top": -144,
       "left": -268.8,
       "attrs": {
-        "text": "0-250 bpm | abaixo de 30 = leitura invalida",
+        "text": "0-250 bpm: define o ritmo; quem mede a FC e o ESP32",
         "fontSize": "11",
         "color": "#6b6b6b"
       }
@@ -186,6 +193,39 @@
         "fontSize": "11",
         "color": "#6b6b6b"
       }
+    },
+    {
+      "type": "wokwi-text",
+      "id": "lbl_pulso",
+      "top": -9.6,
+      "left": -230.4,
+      "attrs": {
+        "text": "Sensor de pulso (PPG) - chip - OUT no GPIO34",
+        "fontSize": "13",
+        "color": "#c62828"
+      }
+    },
+    {
+      "type": "wokwi-text",
+      "id": "lbl_pulso_n",
+      "top": 9.6,
+      "left": -230.4,
+      "attrs": {
+        "text": "ESP32 detecta os batimentos a 50 Hz e calcula a FC",
+        "fontSize": "11",
+        "color": "#6b6b6b"
+      }
+    },
+    {
+      "type": "wokwi-text",
+      "id": "lbl_bancada_n",
+      "top": 28.8,
+      "left": -230.4,
+      "attrs": {
+        "text": "bancada de teste: R0=D26, R1=D33 (ritmo), DEDO=D27, MOV=D14",
+        "fontSize": "11",
+        "color": "#6b6b6b"
+      }
     }
   ],
   "connections": [
@@ -213,14 +253,6 @@
       "pot1:GND",
       "esp:GND.2",
       "black",
-      [
-        "v0"
-      ]
-    ],
-    [
-      "pot1:SIG",
-      "esp:D34",
-      "green",
       [
         "v0"
       ]
@@ -304,6 +336,54 @@
       [
         "v0"
       ]
+    ],
+    [
+      "pot1:SIG",
+      "pulso1:BPM",
+      "orange",
+      []
+    ],
+    [
+      "pulso1:VCC",
+      "esp:3V3",
+      "red",
+      []
+    ],
+    [
+      "pulso1:GND",
+      "esp:GND.2",
+      "black",
+      []
+    ],
+    [
+      "pulso1:OUT",
+      "esp:D34",
+      "purple",
+      []
+    ],
+    [
+      "esp:D27",
+      "pulso1:DEDO",
+      "green",
+      []
+    ],
+    [
+      "esp:D14",
+      "pulso1:MOV",
+      "gold",
+      []
+    ],
+    [
+      "esp:D26",
+      "pulso1:R0",
+      "blue",
+      []
+    ],
+    [
+      "esp:D33",
+      "pulso1:R1",
+      "cyan",
+      []
     ]
   ],
   "dependencies": {}

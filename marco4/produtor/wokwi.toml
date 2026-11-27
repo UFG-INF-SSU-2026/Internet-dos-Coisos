@@ -6,3 +6,8 @@ firmware = ".pio/build/esp32/firmware.bin"
 elf = ".pio/build/esp32/firmware.elf"
 # Serial exposta em TCP: scripts podem enviar as teclas 1/2/3/4/f e ler o log.
 rfc2217ServerPort = 4000
+
+# Sensor de pulso (PPG) simulado: fonte em sensor-pulso.chip.c, compilado para WebAssembly.
+[[chip]]
+name = "sensor-pulso"
+binary = "sensor-pulso.chip.wasm"

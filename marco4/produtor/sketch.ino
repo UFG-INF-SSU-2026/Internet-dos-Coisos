@@ -1,8 +1,12 @@
 /* ==========================================================================
- *  MARCO 3 - ESP32 (Wokwi, Arduino C++)  |  Internet dos Coisos
+ *  MARCO 4 - ESP32 (Wokwi, Arduino C++)  |  Internet dos Coisos
  *
- *  O ESP32 agora so MEDE e ATUA. A analise (janela, cobertura, histerese)
- *  foi para a API em Python: marco3/api/regra.py.
+ *  O ESP32 so MEDE e ATUA. A analise (janela, cobertura, histerese)
+ *  fica na API em Python: marco4/api/regra.py.
+ *
+ *  FC medida pela onda de pulso (Marco 4): o chip sensor-pulso simula um sensor
+ *  optico (PPG). Uma tarefa le a onda a 50 Hz, detecta os batimentos e calcula a
+ *  FC pela mediana dos ultimos intervalos, como se faz com um MAX30102 real.
  *
  *  Ciclo 1: mede a cada 1 s; a cada 3 leituras, POST /api/leituras.
  *           A resposta traz o estado decidido pela API -> LED e buzzer.
@@ -11,7 +15,7 @@
  *  Sem resposta da API por 8 s: MODO LOCAL (regra minima aqui mesmo).
  *
  *  Toda requisicao vai assinada (HMAC-SHA256 com a chave do dispositivo).
- *  O potenciometro NAO e um sensor cardiaco real.
+ *  Os sinais sao simulados e nao tem valor clinico.
  * ========================================================================== */
 
 #include <WiFi.h>
@@ -30,7 +34,11 @@ const char* WIFI_SSID = "Wokwi-GUEST";
 const char* DEVICE_ID = "esp32-borda-01";
 const char* ENTITY_ID = "patient-0042";
 
-const uint8_t PINO_FC     = 34;  // potenciometro: FC simulada (no minimo, < 30 bpm = leitura invalida)
+const uint8_t PINO_PULSO  = 34;  // onda de pulso do chip sensor-pulso (ADC1)
+const uint8_t PINO_R0     = 26;  // bancada: ritmo fixo do coracao simulado (R1R0: 00 = potenciometro,
+const uint8_t PINO_R1     = 33;  //          01 = 78 bpm, 10 = 135 bpm); o Wokwi nao simula o DAC
+const uint8_t PINO_DEDO   = 27;  // bancada: LOW = sensor fora do dedo (cenario 3)
+const uint8_t PINO_MOV    = 14;  // bancada: HIGH = artefato de movimento na onda
 const uint8_t PINO_FALHA  = 13;  // botao vermelho "rede off": simula queda da rede
 const uint8_t PINO_LED    = 25;  // apagado=NORMAL, aceso=ATENCAO, piscando=sem dados
 const uint8_t PINO_BUZZER = 4;
@@ -43,7 +51,16 @@ const uint32_t MODO_LOCAL_MS     = 8000;   // sem resposta da API por 8 s -> mod
 const uint32_t TIMEOUT_HTTP_MS   = 5000;
 const uint32_t WIFI_RETRY_MS     = 10000;
 
-const float FC_ESCALA_MAX   = 250.0;
+const float FC_ESCALA_MAX   = 250.0;  // 3,3 V no BPM/AJUSTE do chip = 250 bpm
+
+// Deteccao de batimentos na onda de pulso.
+const uint32_t PULSO_AMOSTRA_MS       = 20;    // 50 Hz
+const uint32_t PULSO_REFRATARIO_MS    = 300;   // ignora o pico dicrotico; ate 200 bpm
+const uint32_t PULSO_SEM_BATIMENTO_MS = 3000;  // 3 s sem batimento: FC invalida (null)
+const uint8_t  PULSO_INTERVALOS       = 5;     // FC = 60 / mediana dos ultimos 5 intervalos
+const float    PULSO_AMPLITUDE_MIN_V  = 0.15;  // abaixo disso e so ruido (sem dedo)
+const float    PULSO_LIMIAR           = 0.6;   // batimento: sobe acima de 60% da envoltoria
+const float    PULSO_DECAIMENTO       = 0.02;  // envoltoria acompanha o sinal em ~1 s
 const float FC_LIMIAR_LOCAL = 100.0;
 const float GRAVIDADE       = 9.80665;
 
@@ -82,14 +99,76 @@ char cenarioEmExecucao() {
   return '1';                 // Recuperacao por 20 s
 }
 
-float lerFc() {
-  switch (cenarioEmExecucao()) {
-    case '1': return 78.0;
-    case '2': return 135.0;
-    case '3': return NAN;
-    case '4': return 135.0;
-    default: return analogRead(PINO_FC) / 4095.0 * FC_ESCALA_MAX;
+// --- Sensor de pulso: tarefa propria, para o HTTP do loop nao atrapalhar a amostragem ---
+volatile float fcMedida = NAN;
+volatile uint32_t batimentos = 0;
+volatile float pulsoMin = NAN, pulsoMax = NAN;   // envoltoria da onda (diagnostico na serial)
+
+float medianaMs(const uint32_t* v, uint8_t n) {
+  uint32_t o[PULSO_INTERVALOS];
+  for (uint8_t i = 0; i < n; i++) o[i] = v[i];
+  for (uint8_t i = 1; i < n; i++)
+    for (uint8_t j = i; j > 0 && o[j - 1] > o[j]; j--) { uint32_t t = o[j]; o[j] = o[j - 1]; o[j - 1] = t; }
+  return n % 2 ? o[n / 2] : (o[n / 2 - 1] + o[n / 2]) / 2.0;
+}
+
+void tarefaPulso(void*) {
+  float y = 1.0, maximo = 1.0, minimo = 1.0;
+  bool acima = false;
+  uint32_t ultimoBatimento = 0, intervalos[PULSO_INTERVALOS];
+  uint8_t n = 0, i = 0;
+  TickType_t proxima = xTaskGetTickCount();
+  for (;;) {
+    vTaskDelayUntil(&proxima, pdMS_TO_TICKS(PULSO_AMOSTRA_MS));
+    uint32_t agora = millis();
+    y += 0.5 * (analogRead(PINO_PULSO) * 3.3 / 4095.0 - y);     // passa-baixa leve
+    // Envoltoria: sobe na hora com o sinal e desce devagar.
+    if (y > maximo) maximo = y; else maximo -= (maximo - y) * PULSO_DECAIMENTO;
+    if (y < minimo) minimo = y; else minimo += (y - minimo) * PULSO_DECAIMENTO;
+    float amplitude = maximo - minimo;
+    pulsoMin = minimo;
+    pulsoMax = maximo;
+    bool agoraAcima = y > minimo + PULSO_LIMIAR * amplitude;
+    if (agoraAcima && !acima && amplitude > PULSO_AMPLITUDE_MIN_V &&
+        agora - ultimoBatimento > PULSO_REFRATARIO_MS) {
+      if (ultimoBatimento && agora - ultimoBatimento < PULSO_SEM_BATIMENTO_MS) {
+        intervalos[i] = agora - ultimoBatimento;
+        i = (i + 1) % PULSO_INTERVALOS;
+        if (n < PULSO_INTERVALOS) n++;
+      }
+      ultimoBatimento = agora;
+      batimentos++;
+      if (n >= 3) fcMedida = 60000.0 / medianaMs(intervalos, n);
+    }
+    acima = agoraAcima;
+    if (!ultimoBatimento || agora - ultimoBatimento > PULSO_SEM_BATIMENTO_MS) {
+      fcMedida = NAN;      // sem dedo, sem coracao ou sinal so com ruido
+      n = 0;
+    }
   }
+}
+
+float lerFc() { return fcMedida; }
+
+// --- Bancada de teste ---
+// Os cenarios do Monitor Serial nao escrevem a FC: escolhem o ritmo do coracao simulado no
+// chip (R0/R1), tiram o dedo do sensor (DEDO) ou ligam o artefato de movimento (MOV).
+// A FC continua medida pela onda. No modo manual, o potenciometro define o ritmo, e o MOV
+// acompanha o MPU6050: o balanco que o acelerometro mede tambem perturba o sensor optico.
+void ajustarBancada(float g) {
+  uint8_t ritmo = 0;        // 0 = potenciometro, 1 = 78 bpm, 2 = 135 bpm
+  bool dedo = true, mov = false;
+  switch (cenarioEmExecucao()) {
+    case '1': ritmo = 1; break;
+    case '2': ritmo = 2; break;
+    case '3': ritmo = 1; dedo = false; break;
+    case '4': ritmo = 2; mov = true; break;
+    default: mov = !isnan(g) && fabs(g - 1.0) > 0.15;
+  }
+  digitalWrite(PINO_R0, ritmo & 1 ? HIGH : LOW);
+  digitalWrite(PINO_R1, ritmo & 2 ? HIGH : LOW);
+  digitalWrite(PINO_DEDO, dedo ? HIGH : LOW);
+  digitalWrite(PINO_MOV, mov ? HIGH : LOW);
 }
 
 float lerAceleracaoG() {
@@ -272,8 +351,14 @@ void setup() {
   pinMode(PINO_FALHA, INPUT_PULLUP);
   pinMode(PINO_LED, OUTPUT);
   pinMode(PINO_BUZZER, OUTPUT);
+  pinMode(PINO_R0, OUTPUT);
+  pinMode(PINO_R1, OUTPUT);
+  pinMode(PINO_DEDO, OUTPUT);
+  pinMode(PINO_MOV, OUTPUT);
+  ajustarBancada(1.0);
+  xTaskCreatePinnedToCore(tarefaPulso, "pulso", 4096, nullptr, 2, nullptr, 0);
 
-  Serial.println("\n=== MARCO 3 | ESP32 -> HTTP assinado -> API ===");
+  Serial.println("\n=== MARCO 4 | sensor de pulso -> ESP32 -> HTTP assinado -> API ===");
   Serial.println("Cenarios de teste no Serial: 0=manual 1=normal 2=alerta 3=sem sensor 4=movimento a=automatico f=falha de rede");
   Serial.printf("API: %s\n", API_BASE_URL);
   if (strstr(API_BASE_URL, "trycloudflare")) Serial.println("ATENCAO: o tunel redireciona http para https (301); use http://host.wokwi.internal:5000 (D33)");
@@ -310,10 +395,12 @@ void loop() {
 
   if ((int32_t)(agora - proximaAmostraMs) >= 0) {          // 1 leitura por segundo
     proximaAmostraMs += AMOSTRA_MS;
-    ultimaFc = fcLote[nLote] = lerFc();
     ultimaG  = gLote[nLote]  = lerAceleracaoG();
-    Serial.printf("[%lu] fc=%.1f g=%.2f estado=%s%s\n", agora, ultimaFc, ultimaG,
-                  estado.c_str(), modoLocal ? " (MODO LOCAL)" : "");
+    ajustarBancada(ultimaG);
+    ultimaFc = fcLote[nLote] = lerFc();
+    Serial.printf("[%lu] fc=%.1f g=%.2f bat=%lu onda=%.2f-%.2fV estado=%s%s\n", agora, ultimaFc,
+                  ultimaG, (unsigned long)batimentos, pulsoMin, pulsoMax, estado.c_str(),
+                  modoLocal ? " (MODO LOCAL)" : "");
     if (++nLote == LEITURAS_POR_LOTE) { enviarLote(); nLote = 0; }
   }
 
