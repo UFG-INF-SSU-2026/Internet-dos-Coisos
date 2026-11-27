@@ -53,6 +53,47 @@ class Monitor:
         self.historico = deque(maxlen=20)
         self.mov_app = None          # (movimento, instante) da última leitura do celular
 
+    def restaurar(self, leituras, historico, agora, idade_ultimo_lote_s=0.0):
+        """Reconstrói a janela e o último estado a partir do snapshot do banco.
+
+        O contexto do celular não é restaurado: D31 não persiste amostras móveis,
+        portanto ele precisa ser observado novamente após o reinício.
+        """
+        self.amostras.clear()
+        for leitura in leituras[-JANELA_FC:]:
+            self.amostras.append((fc_valida(leitura.get('fc')), movimento(leitura.get('g'))))
+
+        idade = max(0.0, float(idade_ultimo_lote_s))
+        self.ultimo_lote_em = agora - idade if leituras else None
+        self.mov_app = None
+        self.persistencia = 0
+        self.historico.clear()
+
+        for indice, evento in enumerate(historico[-20:], start=1):
+            self.historico.append({
+                'sequence': indice,
+                'estado': evento.get('estado', 'SEM_DADOS'),
+                'razao': evento.get('razao', 'restaurado'),
+                'horaUtc': evento.get('horaUtc'),
+                'fcMedia': evento.get('fcMedia'),
+                'movimento': evento.get('movimento'),
+                'coberturaFc': evento.get('coberturaFc'),
+                'coberturaMov': evento.get('coberturaMov'),
+            })
+
+        if self.historico:
+            self.estado = self.historico[-1]['estado']
+            self.entrou_em = agora
+            self.transicoes = len(self.historico)
+            self.resumo = self.calcular(agora)
+        else:
+            self.estado = None
+            self.entrou_em = None
+            self.transicoes = 0
+            self.resumo = {}
+            if self.amostras:
+                self.avaliar(agora, conta_persistencia=False)
+
     def adicionar(self, leituras, agora):
         """Guarda as leituras do lote e reavalia o estado."""
         for leitura in leituras:
