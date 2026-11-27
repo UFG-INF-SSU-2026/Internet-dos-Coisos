@@ -1,4 +1,12 @@
-# ./gradlew testDebugUnitTest --rerun-tasks (marco4/mobile), 27/11/2026 15:50, JDK do Android Studio
+# ./gradlew testDebugUnitTest --rerun-tasks (marco4/mobile), 27/11/2026 19:24, JDK do Android Studio, commit 178cf38
+ApresentacaoTest > cada_estado_tem_titulo_e_tom PASSED
+ApresentacaoTest > movimento_em_portugues PASSED
+ApresentacaoTest > fc_arredondada_e_hora_local PASSED
+ApresentacaoTest > status_do_comando_explica_o_ciclo_2 PASSED
+ComandoDoAlertaTest > reconhecido_neste_alerta_esconde_o_botao_e_mostra_o_status PASSED
+ComandoDoAlertaTest > sem_comando_pode_reconhecer PASSED
+ComandoDoAlertaTest > comando_de_um_alerta_anterior_nao_aparece PASSED
+ComandoDoAlertaTest > pendente_neste_alerta_tambem_esconde_o_botao PASSED
 CorpoMovimentoTest > segue_o_contrato_app_v1 PASSED
 CorpoMovimentoTest > limita_a_intensidade_entre_0_e_8 PASSED
 IntensidadeTest > parado_inclinado_tambem_e_zero PASSED
@@ -14,4 +22,4 @@ UrlTest > aceita_https_e_tira_barra_e_espacos PASSED
 UrlTest > recusa_vazio_e_so_o_esquema PASSED
 UrlTest > recusa_http PASSED
 UrlTest > recusa_sem_esquema PASSED
-BUILD SUCCESSFUL in 12s
+BUILD SUCCESSFUL in 29s

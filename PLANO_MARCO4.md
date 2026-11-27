@@ -26,11 +26,12 @@ Código em `marco4/mobile` (Kotlin + Compose). O passo a passo para compilar est
 - [x] Botão **Reconhecer alerta**
 - [x] Acelerômetro envia a intensidade do movimento a cada 2 s (é o segundo produtor)
 - [x] Só HTTPS (`usesCleartextTraffic=false`), e o Android valida o certificado do túnel
-- [ ] Abrir no Android Studio, sincronizar o Gradle e corrigir o que não compilar
-- [ ] Testar num celular real contra a URL do túnel Cloudflare
+- [x] Abrir no Android Studio, sincronizar o Gradle e corrigir o que não compilar (o APK compila localmente e no CI)
+- [x] ~~Testar num celular real~~: o grupo decidiu não testar em aparelho físico (27/11). Declarado como limitação no README e no artigo; o app foi verificado no emulador contra a URL do túnel
 - [x] Gerar o APK e salvar em `marco4/apk/coisos-cuidador.apk`
 - [x] Tirar prints das telas (login, estado NORMAL, ATENCAO, erro de rede) no emulador: `marco4/docs/evidencias/app/`
-- [ ] Testar o APK no celular real (acelerômetro físico) junto com o Wokwi
+- [x] Testar o APK junto com o Wokwi: no emulador, com o acelerômetro simulado (ensaio completo de 27/11)
+- [x] Interface do app mais simples (estado em destaque, FC grande, quadros de movimento e dispositivo, botão só com alerta)
 - [x] Sugestão do professor: o potenciômetro deixou de ser o sensor; FC medida numa onda de pulso simulada (chip `sensor-pulso`), com detecção de batimentos no ESP32 (D34)
 
 ## Trilha B: API, testes e CI ✅ (PR #3, merge `6f1a443`)
@@ -65,7 +66,7 @@ Código em `marco4/mobile` (Kotlin + Compose). O passo a passo para compilar est
   - [x] Configuração do banco (`DATABASE_URL`, `sql/timescaledb.sql`)
 - [x] `marco4/docs/verificacao.md` com as 4 verificações do PDF, no formato do pequi
   - [x] Evidência da suíte em `docs/evidencias/testes-api.txt`
-  - [ ] Preencher a coluna **Registro** do ensaio completo (seção 2) durante o ensaio
+  - [x] Preencher a coluna **Registro** do ensaio completo (seção 2): ensaio de 27/11 com TimescaleDB, Wokwi, túnel e emulador
 - [x] Limitações declaradas (segurança, conectividade, desempenho, energia, simulação, dados pessoais)
   - [x] O ESP32 continua em HTTP com HMAC, porque o Wokwi não completa HTTPS (decisão D17)
   - [x] A chave versionada em 16/10 já foi trocada (conferido: a chave do `.env` atual é diferente)
@@ -91,11 +92,11 @@ Código em `marco4/mobile` (Kotlin + Compose). O passo a passo para compilar est
 - [ ] Revisão do grupo (texto, autores, eventuais e-mails)
 - [x] Ensaio do app no emulador no artigo (Seção 6.6, figura com 4 telas; artigo com 15 páginas, no limite)
 - [x] Ensaio do ESP32 no Wokwi do VS Code com o app (D32, D33) e sensor de pulso (D34) no artigo (Seção 6.7; ainda 15 páginas)
-- [ ] Versão de 11/12: incluir os resultados do ensaio completo com o APK (celular real, Wokwi e banco), sem passar de 15 páginas
+- [x] Resultados do ensaio completo (Wokwi, banco, túnel e app no emulador) no artigo, Seções 6.6 e 6.7; ainda 15 páginas
 
 ## Fim do dia: todos juntos
 
-- [ ] Ensaio do fluxo completo: banco → API → túnel → Wokwi → app → alerta → balançar o celular → reconhecer alerta
+- [x] Ensaio do fluxo completo: banco → API → túnel → Wokwi → app → alerta → balançar o celular → reconhecer alerta (27/11, com o emulador; 4 defeitos achados e corrigidos, D35)
 - [ ] Vídeo de até 15 min com os 4 integrantes
 - [ ] Link do vídeo no README
 - [ ] Tag `marco4` no commit entregue (`git tag marco4 && git push origin marco4`)
