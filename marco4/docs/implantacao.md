@@ -82,6 +82,7 @@ A URL do túnel muda a cada vez que o `cloudflared` reinicia. Quando mudar, atua
 1. Com o PlatformIO instalado, rode `pio run` em `marco4/produtor`. O firmware sai em `.pio/build/esp32/`.
 2. Abra a pasta `marco4/produtor` no VS Code e escolha **F1 → Wokwi: Start Simulator**. O `wokwi.toml` aponta para o firmware e usa o mesmo `diagram.json`.
 3. A serial também fica disponível em `rfc2217://localhost:4000`, para scripts enviarem as teclas e lerem o log.
+4. O sensor de pulso é um chip próprio (D34). O `wokwi.toml` carrega o `sensor-pulso.chip.wasm` já compilado. Quem mudar o `sensor-pulso.chip.c` recompila com o WASI SDK (comando no topo do arquivo) e **reinicia o simulador**: só assim o Wokwi relê o chip e o `diagram.json`. No wokwi.com, o chip é compilado na nuvem a partir do `.c` e do `.json`, que devem ser adicionados ao projeto.
 
 Sem o Wokwi, o script `.\.venv\Scripts\python.exe marco4\scripts\simular_sem_wokwi.py` faz o papel do ESP32 e assina os lotes com a chave local.
 

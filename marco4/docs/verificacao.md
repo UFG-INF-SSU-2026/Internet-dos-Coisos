@@ -14,15 +14,15 @@ Em `marco4/testes`, com as dependências instaladas:
 
 A suíte não precisa de Wokwi, banco ou rede. A API roda dentro do processo com `TestClient`, as credenciais são geradas por teste, o relógio monotônico é controlado e o TimescaleDB é trocado por um objeto simulado (`FakeHistorico`).
 
-**Resultado registrado:** 44 testes aprovados.
-- Execução local: [`evidencias/testes-api.txt`](evidencias/testes-api.txt), com Python 3.14 no commit `a94e70b`.
+**Resultado registrado:** 49 testes aprovados.
+- Execução local: [`evidencias/testes-api.txt`](evidencias/testes-api.txt), com Python 3.14 no commit `b33f7a1`. Os 5 testes novos cobrem o silêncio adaptativo (D32).
 - CI no GitHub Actions: roda a cada push na `main`, com Python 3.10 e 3.12 ([histórico de execuções](https://github.com/UFG-INF-SSU-2026/Internet-dos-Coisos/actions/workflows/testes.yml)). A primeira execução, com 42 testes, foi o [run 46039476817](https://github.com/UFG-INF-SSU-2026/Internet-dos-Coisos/actions/runs/46039476817) no merge `6f1a443`. Os relatórios JUnit ficam nos artefatos `relatorio-junit-py3.10` e `relatorio-junit-py3.12`.
 
 ### Módulos e requisitos cobertos
 
 | Arquivo de teste | Módulo exercitado | Requisito coberto | Testes |
 |---|---|---|---|
-| `test_regra.py` | `api/regra.py` | Regra com estado e tempo: janela, cobertura, persistência, histerese, silêncio | 7 |
+| `test_regra.py` | `api/regra.py` | Regra com estado e tempo: janela, cobertura, persistência, histerese, silêncio (fixo e adaptativo) | 12 |
 | `test_api.py` | `api/app.py` (rotas do ESP32 e do painel) | Autenticação HMAC, autorização dispositivo/paciente/cuidador, ciclo 1 e ciclo 2 | 12 |
 | `test_melhorias.py` | `app.py` (fila, WebSocket, histórico) | Fila FIFO, WebSocket autenticado, `/api/saude` sem dados pessoais | 6 |
 | `test_consolidacao.py` | `app.py` + `temporal.py` + `gerar_config.py` | Gravação de leituras, transições e comandos; consulta do histórico; segredos fora do Git | 4 |
@@ -137,6 +137,23 @@ O ESP32 simulado no Wokwi do VS Code usou o mesmo `sketch.ino` e o mesmo `diagra
 | Tecla `f` de novo (16:54:34) | Às 16:54:37: "API respondeu: estado volta a vir da API", lote com HTTP 200; `ATENCAO` às 16:54:45 | `x7-recuperado.png` |
 
 Neste ensaio não foram verificados: o TimescaleDB (2.2), o certificado no navegador (2.3) e o celular físico.
+
+### 2.0c Sensor de pulso no Wokwi (27/11/2026)
+
+Depois da troca do potenciômetro pelo sensor de pulso simulado (D34), cada cenário foi repetido no Wokwi do VS Code, com a FC medida pela detecção de batimentos do ESP32.
+O log está em [`evidencias/ensaio-sensor-pulso.txt`](evidencias/ensaio-sensor-pulso.txt).
+
+| Entrada no chip | FC medida pelo ESP32 | Estado na API |
+|---|---|---|
+| Potenciômetro no meio (125 bpm), cenário `0` | 125,0 bpm, estável | `ATENCAO` (repouso) |
+| Cenário `1`: coração a 78 bpm | 76,9–78,9 bpm a partir do 4º batimento | `NORMAL` |
+| Cenário `2`: coração a 135 bpm | 136,4 bpm | `ATENCAO` |
+| Cenário `3`: sensor fora do dedo | batimentos param; FC inválida (`null`) em ~3 s | `DADOS_INSUFICIENTES` |
+| Cenário `4`: 135 bpm com artefato de movimento (g = 1,75) | 97–120 bpm, oscilando: o balanço cria e esconde picos | `NORMAL` (movimento explica a FC) |
+
+Com o chip, a simulação ficou em ~32% da velocidade real; o silêncio adaptativo (D32) absorveu a diferença.
+Na primeira montagem, os cenários `1` e `2` não mudavam a FC, porque o Wokwi não simula o DAC do ESP32; o ritmo passou a ser escolhido por dois pinos digitais.
+O Wokwi do VS Code só relê o `diagram.json` e a lista de pinos do chip ao reiniciar o simulador.
 
 ### 2.1 Fluxo e contexto
 

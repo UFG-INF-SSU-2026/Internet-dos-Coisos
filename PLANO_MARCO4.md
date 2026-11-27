@@ -31,6 +31,7 @@ Código em `marco4/mobile` (Kotlin + Compose). O passo a passo para compilar est
 - [x] Gerar o APK e salvar em `marco4/apk/coisos-cuidador.apk`
 - [x] Tirar prints das telas (login, estado NORMAL, ATENCAO, erro de rede) no emulador: `marco4/docs/evidencias/app/`
 - [ ] Testar o APK no celular real (acelerômetro físico) junto com o Wokwi
+- [x] Sugestão do professor: o potenciômetro deixou de ser o sensor; FC medida numa onda de pulso simulada (chip `sensor-pulso`), com detecção de batimentos no ESP32 (D34)
 
 ## Trilha B: API, testes e CI ✅ (PR #3, merge `6f1a443`)
 
@@ -89,6 +90,7 @@ Código em `marco4/mobile` (Kotlin + Compose). O passo a passo para compilar est
 - [x] PDF em `marco4/docs/artigo.pdf`
 - [ ] Revisão do grupo (texto, autores, eventuais e-mails)
 - [x] Ensaio do app no emulador no artigo (Seção 6.6, figura com 4 telas; artigo com 15 páginas, no limite)
+- [x] Ensaio do ESP32 no Wokwi do VS Code com o app (D32, D33) e sensor de pulso (D34) no artigo (Seção 6.7; ainda 15 páginas)
 - [ ] Versão de 11/12: incluir os resultados do ensaio completo com o APK (celular real, Wokwi e banco), sem passar de 15 páginas
 
 ## Fim do dia: todos juntos

@@ -26,7 +26,7 @@ O cuidador acompanha pelo app ou pelo painel web e reconhece o alerta, o que sil
 |---|---|---|
 | **1. Aplicativo móvel** | Código em [`mobile/`](mobile/) (Kotlin + Compose) · instruções em [`mobile/README.md`](mobile/README.md) · APK em [`apk/`](apk/) · contrato em [`contrato/app-v1.json`](contrato/app-v1.json) | ✅ APK gerado e testado no emulador ([ensaio 2.0](docs/verificacao.md), prints em [`docs/evidencias/app/`](docs/evidencias/app/)); falta o teste no celular real |
 | **2. Persistência de dados** (banco temporal) | [`api/armazenamento.py`](api/armazenamento.py), esquema em [`api/sql/timescaledb.sql`](api/sql/timescaledb.sql) (3 hypertables) · verificação em [`scripts/verificar_banco.py`](scripts/verificar_banco.py) | ✅ TimescaleDB |
-| **3. Testes automatizados** | [`testes/`](testes/), 44 testes da API + 15 testes de unidade do app ([`mobile/app/src/test/`](mobile/app/src/test/)) · comandos, módulos e resultados em [`docs/verificacao.md`](docs/verificacao.md) · CI em [`../.github/workflows/testes.yml`](../.github/workflows/testes.yml) com relatório JUnit | ✅ unitários e de API |
+| **3. Testes automatizados** | [`testes/`](testes/), 49 testes da API + 15 testes de unidade do app ([`mobile/app/src/test/`](mobile/app/src/test/)) · comandos, módulos e resultados em [`docs/verificacao.md`](docs/verificacao.md) · CI em [`../.github/workflows/testes.yml`](../.github/workflows/testes.yml) com relatório JUnit | ✅ unitários e de API |
 | **4. Documentação técnica de implantação** | [`docs/implantacao.md`](docs/implantacao.md): versões, credenciais de teste, banco, ordem de execução e APK | ✅ |
 | **5. Relatório técnico (artigo)** | [`docs/artigo.pdf`](docs/artigo.pdf), 15 páginas · fonte LaTeX em [`docs/artigo/artigo.tex`](docs/artigo/artigo.tex) · números de [`scripts/avaliar.py`](scripts/avaliar.py) | ✅ com o ensaio do app no emulador (Seção 6.6); o ensaio com celular, Wokwi e banco entra na versão de 11/12 |
 
@@ -73,7 +73,7 @@ Os quatro apontamentos foram implementados no commit `f59a370` (06/11/2026).
 |---|---|---|---|
 | WebSocket | `WS /ws/pacientes/{id}` autenticado, em [`api/app.py`](api/app.py) e [`api/templates/painel.html`](api/templates/painel.html) | `test_websocket_precisa_sessao`, `test_websocket_envia_estado_ao_receber_leituras` | Atendido |
 | Banco temporal | TimescaleDB com 3 hypertables ([`api/armazenamento.py`](api/armazenamento.py), [`api/sql/timescaledb.sql`](api/sql/timescaledb.sql)) | `test_consolidacao.TestarPersistenciaIntegrada` e consulta SQL depois de reiniciar a API (vídeo) | Atendido |
-| Melhorar a simulação | Cenários `0`–`4`, `a` e `f` no [`produtor/sketch.ino`](produtor/sketch.ino), com modo local em caso de falha | Serial Monitor e painel (vídeo) | Atendido |
+| Melhorar a simulação | Sensor de pulso simulado ([`produtor/sensor-pulso.chip.c`](produtor/sensor-pulso.chip.c)) com detecção de batimentos no ESP32 (D34); cenários `0`–`4`, `a` e `f` no [`produtor/sketch.ino`](produtor/sketch.ino), com modo local em caso de falha | Serial Monitor e painel (vídeo) | Atendido |
 | Transformar em fila | `asyncio.Queue` com consumidor único, deduplicação e 503 quando enche; no Marco 4, a fila recebe também o app | `test_fila_evidencia_ordem_e_contadores`, `test_fila_processa_e_preserva_estado`, `test_leituras_do_celular_passam_pela_fila` | Atendido |
 
 ---
@@ -82,7 +82,7 @@ Os quatro apontamentos foram implementados no commit `f59a370` (06/11/2026).
 
 ```mermaid
 flowchart TD
-    S["FC simulada: potenciômetro/cenários + MPU6050"] --> ESP["ESP32 no Wokwi: mede, LED/buzzer e modo local"]
+    S["Sensor de pulso simulado (onda PPG) + MPU6050"] --> ESP["ESP32 no Wokwi: detecta batimentos, LED/buzzer e modo local"]
     CEL["App Android do cuidador: acelerômetro + tela de estado"]
     ESP -->|"Produtor 1: lotes de 3 leituras - HTTP + HMAC"| T["Túnel temporário Cloudflare"]
     ESP -->|"GET comando + POST ack - HMAC"| T
@@ -153,7 +153,7 @@ Pendências que serão tratadas até a entrega final de 11/12/2026:
 | Recuperar o estado e o comando pendente depois de reiniciar a API | Depois do reinício, o estado recomeça vazio até chegarem novos lotes, e um comando pendente se perde | O histórico está no banco, mas o estado corrente e a fila ficam em memória (D13, D19) |
 
 Outras limitações declaradas:
-- **Simulação:** a FC vem de um potenciômetro ou de cenários e não é sinal médico. O paciente e o dispositivo são fictícios.
+- **Simulação:** a FC é medida numa onda de pulso sintética (D34), cujo ritmo vem de um potenciômetro ou dos cenários; não é sinal médico. O paciente e o dispositivo são fictícios.
 - **Dados pessoais:** nenhum. O app não coleta localização nem identidade; envia só a intensidade do movimento.
 - **Papel do celular:** na demonstração, o mesmo celular é o app do cuidador e o sensor de movimento do paciente. Num cenário real, o sensor ficaria com o paciente.
 - **Segurança:**
@@ -174,7 +174,7 @@ Outras limitações declaradas:
 
 | Ferramenta | Finalidade | Síntese das orientações | Sugestões aproveitadas ou modificadas | Validação |
 |---|---|---|---|---|
-| Claude Code (Claude Opus 5.5) | Plano do Marco 4; rotas do app na API; regra de contexto; testes; CI com JUnit; esqueleto do app Android; documentação do Marco 4 | Usar o celular como segundo produtor via acelerômetro; token assinado em vez de chave no APK; descartar leitura atrasada pelo horário de captura; mesma fila FIFO para os dois produtores | Aproveitadas: rotas, testes, CI, app e documentos. Modificado durante o trabalho: o teste de supressão passou a aceitar `DADOS_INSUFICIENTES` nos primeiros lotes, porque a janela ainda não está cheia. Corrigido depois da avaliação: a leitura do celular contava para a persistência de entrada e fazia o alerta voltar em 0 s (commit `a94e70b`) | 44 testes locais e no CI (Python 3.10 e 3.12); revisão do grupo; ensaio completo em [`docs/verificacao.md`](docs/verificacao.md) |
+| Claude Code (Claude Opus 5.5) | Plano do Marco 4; rotas do app na API; regra de contexto; testes; CI com JUnit; esqueleto do app Android; documentação do Marco 4 | Usar o celular como segundo produtor via acelerômetro; token assinado em vez de chave no APK; descartar leitura atrasada pelo horário de captura; mesma fila FIFO para os dois produtores | Aproveitadas: rotas, testes, CI, app e documentos. Modificado durante o trabalho: o teste de supressão passou a aceitar `DADOS_INSUFICIENTES` nos primeiros lotes, porque a janela ainda não está cheia. Corrigido depois da avaliação: a leitura do celular contava para a persistência de entrada e fazia o alerta voltar em 0 s (commit `a94e70b`) | 49 testes locais e no CI (Python 3.10 e 3.12); revisão do grupo; ensaio completo em [`docs/verificacao.md`](docs/verificacao.md) |
 | _Ferramentas usadas nos marcos anteriores_ | _a preencher pelo grupo_ | | | |
 
 O grupo é responsável por compreender, testar e explicar todo o material entregue.

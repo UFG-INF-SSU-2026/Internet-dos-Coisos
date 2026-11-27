@@ -6,7 +6,7 @@ Esta página explica as visualizações da entrega. Os dados representados no ES
 
 ![Arquitetura final](visuais/arquitetura-final.svg)
 
-- **Sensores virtuais:** o potenciômetro produz frequência cardíaca simulada (FC) e o MPU6050 fornece magnitude da aceleração, em g.
+- **Sensores virtuais:** um chip do Wokwi simula um sensor de pulso óptico e gera a onda; o ESP32 detecta os batimentos e calcula a frequência cardíaca (FC); o potenciômetro só define o ritmo do coração simulado, e o MPU6050 fornece magnitude da aceleração, em g.
 - **Ciclo 1 (telemetria):** cada lote contém até três leituras; a API autentica a mensagem com HMAC e verifica o vínculo paciente/dispositivo, enfileira e aguarda o consumo do lote.
 - **Fila FIFO:** `asyncio.Queue(maxsize=128)`, com consumidor único. O painel apresenta `enfileirados`, `processados`, `pendentes` e a sequência dos últimos IDs processados. Os números são contadores de processamento em memória, não taxas calculadas pelo banco.
 - **Regra:** `regra.py` processa janela de dez amostras de FC e cinco de movimento, calcula cobertura e decide NORMAL, ATENCAO ou DADOS_INSUFICIENTES.

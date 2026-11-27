@@ -5,7 +5,7 @@
 | Tempo | Tela ou operação | Explicação objetiva |
 |---|---|---|
 | 0:00–1:00 | [Arquitetura](visuais/arquitetura-final.svg) | ESP32/Wokwi, API, fila, regra, banco e painel; dois ciclos de comunicação |
-| 1:00–2:00 | Circuito virtual + Serial Monitor | Potenciômetro/MPU6050, lote de três leituras, HTTP assinado com HMAC |
+| 1:00–2:00 | Circuito virtual + Serial Monitor | Sensor de pulso simulado: o ESP32 detecta os batimentos na onda (`bat=` na serial); MPU6050, lote de três leituras, HTTP assinado com HMAC |
 | 2:00–3:00 | Painel autenticado | WebSocket mantém conexão e envia evento sem atualizar a página; REST somente como contingência |
 | 3:00–4:00 | Indicadores da fila | Lotes enfileirados/processados/pendentes; consumidor FIFO; fila em memória de até 128 lotes |
 | 4:00–5:20 | Gráfico e SQL Editor | FC × tempo, três hypertables, `time_bucket`, distinção entre estado volátil e histórico durável |
