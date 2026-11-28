@@ -61,6 +61,62 @@ class Monitor:
         self.mov_app = None          # (movimento, instante) da última leitura do celular
         self.intervalos = deque(maxlen=INTERVALOS_OBSERVADOS)   # segundos entre lotes recentes
 
+    def restaurar(self, leituras, historico, agora, idade_ultimo_lote_s=0.0):
+        """Reconstrói a janela e o último estado a partir do snapshot do banco."""
+        from datetime import datetime
+
+        self.amostras.clear()
+        for leitura in leituras[-JANELA_FC:]:
+            self.amostras.append((fc_valida(leitura.get('fc')), movimento(leitura.get('g'))))
+
+        idade = max(0.0, float(idade_ultimo_lote_s))
+        self.ultimo_lote_em = agora - idade if leituras else None
+        self.mov_app = None
+        self.persistencia = 0
+        self.historico.clear()
+
+        # D32: reconstroi a mediana dos intervalos entre lotes a partir dos
+        # horarios finais de cada lote persistido.
+        if hasattr(self, 'intervalos'):
+            self.intervalos.clear()
+            finais_por_lote = {}
+            for leitura in leituras:
+                lote, ts = leitura.get('loteId'), leitura.get('recebidoEmUtc')
+                if lote and ts:
+                    try:
+                        instante = datetime.fromisoformat(ts.replace('Z', '+00:00'))
+                        finais_por_lote[lote] = max(finais_por_lote.get(lote, instante), instante)
+                    except (TypeError, ValueError):
+                        continue
+            finais = sorted(finais_por_lote.values())
+            for anterior, atual in zip(finais, finais[1:]):
+                self.intervalos.append((atual - anterior).total_seconds())
+
+        for indice, evento in enumerate(historico[-20:], start=1):
+            self.historico.append({
+                'sequence': indice,
+                'estado': evento.get('estado', 'SEM_DADOS'),
+                'razao': evento.get('razao', 'restaurado'),
+                'horaUtc': evento.get('horaUtc'),
+                'fcMedia': evento.get('fcMedia'),
+                'movimento': evento.get('movimento'),
+                'coberturaFc': evento.get('coberturaFc'),
+                'coberturaMov': evento.get('coberturaMov'),
+            })
+
+        if self.historico:
+            self.estado = self.historico[-1]['estado']
+            self.entrou_em = agora
+            self.transicoes = len(self.historico)
+            self.resumo = self.calcular(agora)
+        else:
+            self.estado = None
+            self.entrou_em = None
+            self.transicoes = 0
+            self.resumo = {}
+            if self.amostras:
+                self.avaliar(agora, conta_persistencia=False)
+
     def adicionar(self, leituras, agora):
         """Guarda as leituras do lote e reavalia o estado."""
         for leitura in leituras:

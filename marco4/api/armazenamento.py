@@ -168,3 +168,55 @@ class Armazenamento:
             return [{'recebidoEmUtc': ts.isoformat(), 'loteId': lote,
                      'fc': fc, 'g': g} for ts, lote, fc, g in reversed(rows)]
         return self._rodar(buscar)
+
+    def restaurar_estado(self, patient_id, limite=10):
+        """Recupera leituras recentes, transicoes e ultimo comando do paciente.
+
+        A fila e os eventos nao persistidos continuam sendo volateis. A leitura
+        mais recente serve tambem para reconstruir o instante do ultimo contato.
+        """
+        limite = min(80, max(1, int(limite)))
+
+        def buscar(conn):
+            leituras = conn.execute(
+                '''SELECT ts, lote_id, fc, g FROM leituras
+                   WHERE patient_id = %s ORDER BY ts DESC LIMIT %s''',
+                (patient_id, limite),
+            ).fetchall()
+            eventos = conn.execute(
+                '''SELECT ts, estado, razao, fc_media, movimento, cobertura_fc, cobertura_mov
+                   FROM eventos_estado WHERE patient_id = %s
+                   ORDER BY ts DESC LIMIT 20''',
+                (patient_id,),
+            ).fetchall()
+            comando = conn.execute(
+                '''SELECT ts, command_id, tipo, status, emitido_por
+                   FROM comandos WHERE patient_id = %s ORDER BY ts DESC LIMIT 1''',
+                (patient_id,),
+            ).fetchone()
+
+            return {
+                'leituras': [
+                    {'recebidoEmUtc': ts.isoformat(), 'loteId': lote,
+                     'fc': fc, 'g': g}
+                    for ts, lote, fc, g in reversed(leituras)
+                ],
+                'historico': [
+                    {'horaUtc': ts.isoformat(), 'estado': estado, 'razao': razao,
+                     'fcMedia': fc_media, 'movimento': movimento,
+                     'coberturaFc': cobertura_fc, 'coberturaMov': cobertura_mov}
+                    for ts, estado, razao, fc_media, movimento, cobertura_fc, cobertura_mov
+                    in reversed(eventos)
+                ],
+                'comando': ({
+                    'criadoEmUtc': comando[0].isoformat(),
+                    'commandId': comando[1], 'tipo': comando[2],
+                    'status': comando[3], 'emitidoPor': comando[4],
+                    'confirmadoEmUtc': comando[0].isoformat() if comando[3] == 'EXECUTADO' else None,
+                    'canal': 'restaurado',
+                } if comando else None),
+            }
+
+        if not self.url:
+            return None
+        return self._rodar(buscar)

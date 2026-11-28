@@ -89,6 +89,7 @@ Sem o Wokwi, o script `.\.venv\Scripts\python.exe marco4\scripts\simular_sem_wok
 ## 5. Configurar o armazenamento
 
 1. Crie um serviço PostgreSQL **com TimescaleDB** (o passo a passo do Tiger Cloud está no [guia do Marco 3, seção 4](GUIA_EXECUCAO_E_TESTES.md#4-criar-timescaledb-na-nuvem-antes-da-demonstração-completa)).
+   Alternativa local, usada no ensaio completo de 27/11/2026: `docker run -d --name coisos-tsdb -p 127.0.0.1:5433:5432 -e POSTGRES_PASSWORD=<senha> -e POSTGRES_DB=coisos timescale/timescaledb:latest-pg17`, com `DATABASE_URL=postgresql://postgres:<senha>@127.0.0.1:5433/coisos`. O driver vem de `api/requirements-temporal.txt`.
 2. Acrescente ao `marco4/api/.env` a URL fornecida pelo provedor:
    ```dotenv
    DATABASE_URL=postgresql://USUARIO:SENHA_URL_CODIFICADA@HOST:PORTA/BANCO?sslmode=require

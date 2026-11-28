@@ -34,7 +34,7 @@ from regra import Monitor
 from temporal import HistoricoTemporal
 
 BASE = Path(__file__).resolve().parent
-ONLINE_S = 10          # sem contato do ESP32 por 10 s: "sem contato recente"
+ONLINE_S = 10          # sem contato do ESP32 por 10 s (ou pelo limite adaptativo, D32): "sem contato recente"
 MAX_LEITURAS = 10      # o ESP32 manda 3 por lote; folga para atrasos
 JANELA_ASSINATURA_S = 120  # mensagem assinada há mais de 120 s é recusada (anti-repetição)
 TOKEN_APP_VALIDADE_S = 8 * 3600  # token do app vale um turno de 8 h; depois, novo login
@@ -124,8 +124,54 @@ def create_app():
     conexoes = set()
     vigilancia = {'task': None}
 
+    # Recupera o último snapshot persistido antes de aceitar novas leituras.
+    # Falha no banco não impede a API de iniciar; nesse caso começa em memória.
+    restauracao = None
+    restaurar = getattr(temporal, 'restaurar_estado', None)
+    if callable(restaurar):
+        try:
+            restauracao = restaurar(patient_id, limite=80)
+        except Exception as exc:
+            print(f'[recuperacao] snapshot indisponivel ({type(exc).__name__}); iniciando em memoria')
+
+    if restauracao:
+        leituras_restauradas = restauracao.get('leituras') or []
+        historico_restaurado = restauracao.get('historico') or []
+        ultima_leitura = leituras_restauradas[-1] if leituras_restauradas else None
+        idade_ultimo_lote = 0.0
+        if ultima_leitura and ultima_leitura.get('recebidoEmUtc'):
+            try:
+                instante = datetime.fromisoformat(ultima_leitura['recebidoEmUtc'].replace('Z', '+00:00'))
+                if instante.tzinfo is None:
+                    instante = instante.replace(tzinfo=timezone.utc)
+                idade_ultimo_lote = max(0.0, (datetime.now(timezone.utc) - instante).total_seconds())
+                dados['hora_contato'] = instante.isoformat()
+                dados['contato_em'] = time.monotonic() - idade_ultimo_lote
+            except (TypeError, ValueError):
+                pass
+
+        monitor.restaurar(
+            leituras_restauradas,
+            historico_restaurado,
+            time.monotonic(),
+            idade_ultimo_lote_s=idade_ultimo_lote,
+        )
+        graficos.extend(leituras_restauradas[-80:])
+        lotes_recentes = {}
+        for leitura in leituras_restauradas:
+            lote = leitura.get('loteId')
+            if lote:
+                lotes_recentes[lote] = leitura.get('recebidoEmUtc')
+        dados['lotes_vistos'].extend(list(lotes_recentes)[-100:])
+        for lote, instante in list(lotes_recentes.items())[-8:]:
+            ultimos_lotes.append({'loteId': lote, 'origem': 'esp32', 'processadoEmUtc': instante})
+        dados['comando'] = restauracao.get('comando')
+
     def resumo_estado():
-        online = dados['contato_em'] is not None and time.monotonic() - dados['contato_em'] < ONLINE_S
+        # Mesmo ritmo do silêncio da regra (D32): com o Wokwi lento, o limite fixo dava "sem contato"
+        # entre dois lotes normais.
+        limite = max(ONLINE_S, monitor.limite_silencio())
+        online = dados['contato_em'] is not None and time.monotonic() - dados['contato_em'] < limite
         return {
             'paciente': patient_id,
             'dispositivo': device_id,

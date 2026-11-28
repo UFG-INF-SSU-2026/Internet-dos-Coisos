@@ -107,5 +107,29 @@ class TestarSilencioAdaptativo(unittest.TestCase):
         self.assertIsNone(m.estado)
 
 
+    def test_restaurar_reconstroi_janela_estado_historico_e_silencio_adaptativo(self):
+        m = Monitor()
+        leituras = [
+            {'fc': 120.0, 'g': 1.0, 'loteId': f'lote-{i}',
+             'recebidoEmUtc': f'2026-11-27T19:59:{i * 3:02d}+00:00'}
+            for i in range(1, 4)
+        ]
+        historico = [{
+            'horaUtc': '2026-11-27T20:00:00+00:00', 'estado': 'ATENCAO',
+            'razao': 'condicao_persistiu', 'fcMedia': 120.0, 'movimento': 'REST',
+            'coberturaFc': 1.0, 'coberturaMov': 1.0,
+        }]
+        m.restaurar(leituras, historico, agora=500.0, idade_ultimo_lote_s=2.0)
+        self.assertEqual(m.estado, 'ATENCAO')
+        self.assertEqual(len(m.amostras), 3)
+        self.assertEqual(m.ultimo_lote_em, 498.0)
+        self.assertEqual(m.resumo['fcMedia'], 120.0)
+        self.assertEqual(m.historico[-1]['razao'], 'condicao_persistiu')
+        self.assertIsNone(m.mov_app)
+        self.assertEqual(m.persistencia, 0)
+        self.assertEqual(len(m.intervalos), 2)
+
+
+
 if __name__ == '__main__':
     unittest.main()
