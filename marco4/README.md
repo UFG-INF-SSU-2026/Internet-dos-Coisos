@@ -24,20 +24,20 @@ O cuidador acompanha pelo app ou pelo painel web e reconhece o alerta, o que sil
 
 | Item | Onde está | Situação |
 |---|---|---|
-| **1. Aplicativo móvel** | Código em [`mobile/`](mobile/) (Kotlin + Compose) · instruções em [`mobile/README.md`](mobile/README.md) · APK em [`apk/`](apk/) · contrato em [`contrato/app-v1.json`](contrato/app-v1.json) | ✅ APK gerado e testado no emulador ([ensaio 2.0](docs/verificacao.md), prints em [`docs/evidencias/app/`](docs/evidencias/app/)); falta o teste no celular real |
-| **2. Persistência de dados** (banco temporal) | [`api/armazenamento.py`](api/armazenamento.py), esquema em [`api/sql/timescaledb.sql`](api/sql/timescaledb.sql) (3 hypertables) · verificação em [`scripts/verificar_banco.py`](scripts/verificar_banco.py) | ✅ TimescaleDB |
-| **3. Testes automatizados** | [`testes/`](testes/), 56 casos reportados pela suíte Python (inclui TimescaleDB real) + 18 testes JVM do app; 2 testes instrumentados Compose em execução no CI ([`mobile/app/src/test/`](mobile/app/src/test/)) · comandos, módulos e resultados em [`docs/verificacao.md`](docs/verificacao.md) · CI em [`../.github/workflows/testes.yml`](../.github/workflows/testes.yml) com relatório JUnit | ✅ unitários e de API |
+| **1. Aplicativo móvel** | Código em [`mobile/`](mobile/) (Kotlin + Compose) · instruções em [`mobile/README.md`](mobile/README.md) · APK em [`apk/`](apk/) · contrato em [`contrato/app-v1.json`](contrato/app-v1.json) | ✅ APK testado no emulador, no ensaio completo com Wokwi e TimescaleDB ([verificação, seção 2](docs/verificacao.md#2-ensaio-com-o-sistema-completo), prints em [`docs/evidencias/app/completo/`](docs/evidencias/app/completo/)); sem teste em celular físico (decisão do grupo) |
+| **2. Persistência de dados** (banco temporal) | [`api/armazenamento.py`](api/armazenamento.py), esquema em [`api/sql/timescaledb.sql`](api/sql/timescaledb.sql) (3 hypertables) · verificação em [`scripts/verificar_banco.py`](scripts/verificar_banco.py) | ✅ TimescaleDB, verificado no ensaio: dados preservados depois de reiniciar a API ([2.2](docs/verificacao.md#22-persistência)) |
+| **3. Testes automatizados** | [`testes/`](testes/), 54 testes da API (2 com TimescaleDB real, que rodam no CI) + 27 testes de unidade do app ([`mobile/app/src/test/`](mobile/app/src/test/)) + 2 testes instrumentados Compose (tela de login) · comandos, módulos e resultados em [`docs/verificacao.md`](docs/verificacao.md) · CI em [`../.github/workflows/testes.yml`](../.github/workflows/testes.yml) com relatório JUnit | ✅ unitários e de API |
 | **4. Documentação técnica de implantação** | [`docs/implantacao.md`](docs/implantacao.md): versões, credenciais de teste, banco, ordem de execução e APK | ✅ |
-| **5. Relatório técnico (artigo)** | [`docs/artigo.pdf`](docs/artigo.pdf), 15 páginas · fonte LaTeX em [`docs/artigo/artigo.tex`](docs/artigo/artigo.tex) · números de [`scripts/avaliar.py`](scripts/avaliar.py) | ✅ com o ensaio do app no emulador (Seção 6.6); o ensaio com celular, Wokwi e banco entra na versão de 11/12 |
+| **5. Relatório técnico (artigo)** | [`docs/artigo.pdf`](docs/artigo.pdf), 15 páginas · fonte LaTeX em [`docs/artigo/artigo.tex`](docs/artigo/artigo.tex) · números de [`scripts/avaliar.py`](scripts/avaliar.py) | ✅ com o ensaio completo (Seções 6.6 e 6.7) |
 
 ### O app em funcionamento
 
-Prints do ensaio no emulador (Android 37), com a API real exposta pelo túnel HTTPS e o ESP32 simulado por script. Roteiro e resultados no [ensaio 2.0](docs/verificacao.md).
+Prints do ensaio completo (27/11/2026): ESP32 com sensor de pulso no Wokwi, API com TimescaleDB, túnel HTTPS e o APK no emulador (Android API 37). Roteiro, horários e consultas SQL na [verificação, seção 2](docs/verificacao.md#2-ensaio-com-o-sistema-completo).
 
-| FC alta em repouso | Alerta reconhecido | Celular em movimento | Sem rede |
+| FC alta em repouso | Alerta reconhecido | Celular em movimento | ESP32 sem rede |
 |:-:|:-:|:-:|:-:|
-| <img src="docs/evidencias/app/05-atencao.png" width="180" alt="Estado ATENCAO com FC 120 e movimento REST vindo do ESP32"> | <img src="docs/evidencias/app/06-reconhecido.png" width="180" alt="Comando de reconhecimento EXECUTADO pelo ESP32"> | <img src="docs/evidencias/app/07-contexto-movimento.png" width="180" alt="Estado NORMAL com movimento ACTIVE vindo do celular"> | <img src="docs/evidencias/app/09-sem-rede.png" width="180" alt="Erro de rede mantendo o último estado recebido"> |
-| `ATENCAO`; o botão fica ativo | O ESP32 silencia o buzzer e devolve o ACK | O contexto muda e o alerta é encerrado | O app mantém o último estado e volta sozinho |
+| <img src="docs/evidencias/app/completo/c03-atencao.png" width="180" alt="Atenção: FC de 119 bpm com o paciente em repouso e o botão Reconhecer alerta"> | <img src="docs/evidencias/app/completo/c04-reconhecido.png" width="180" alt="Alerta reconhecido: alarme silenciado no dispositivo"> | <img src="docs/evidencias/app/completo/c05-movimento-celular.png" width="180" alt="Tudo bem: movimento medido pelo celular explica a FC alta"> | <img src="docs/evidencias/app/completo/c08-esp32-sem-rede.png" width="180" alt="Sem leituras suficientes: dispositivo sem contato"> |
+| `ATENCAO`; o botão fica ativo | O ESP32 silencia o buzzer e devolve o ACK; o botão some | O contexto muda e o alerta é encerrado | O ESP32 entra em modo local; o app mostra a falta de dados |
 
 ### Requisitos mantidos
 
@@ -149,13 +149,15 @@ Pendências que serão tratadas até a entrega final de 11/12/2026:
 |---|---|---|
 | TLS no ESP32 | As leituras sintéticas do ESP32 trafegam sem sigilo até a borda da Cloudflare. O HMAC garante integridade e autenticidade, e há replay possível dentro da janela de 120 s | O handshake TLS falhou no sketch do grupo no Wokwi (D17). O app, que é o canal do usuário, já usa HTTPS validado |
 | Teste de integração com TimescaleDB real no CI | Detecta incompatibilidades SQL/hypertable antes do ensaio | ✅ PR #6: teste real executado com serviço TimescaleDB no CI (Python 3.10 e 3.12) |
-| Testes instrumentados do app | Regressões de layout dependem do ensaio manual | Dois testes Compose foram adicionados no PR #6 e rodam em emulador Android no Actions; aguardando confirmação do CI |
-| Recuperar o estado e o comando pendente depois de reiniciar a API | A recuperação depende do TimescaleDB disponível; fila e contexto móvel continuam voláteis | ✅ D35 e testes automatizados no PR #6; restaura leituras, transições e último comando, não fila nem amostras móveis (D19, D31) |
+| Testes instrumentados do app | Regressões de layout dependem do ensaio manual | Dois testes Compose (tela de login) no PR #6, rodando em emulador no Actions; a lógica das telas tem 27 testes de unidade na JVM |
+| Recuperar o estado e o comando pendente depois de reiniciar a API | A recuperação depende do TimescaleDB disponível; fila e contexto móvel continuam voláteis | ✅ D35 e testes automatizados no PR #6; restaura leituras, transições e último comando, não fila nem amostras móveis (D19, D31); ainda não exercitado no ensaio completo de 27/11, que rodou antes dela |
 
 Outras limitações declaradas:
 - **Simulação:** a FC é medida numa onda de pulso sintética (D34), cujo ritmo vem de um potenciômetro ou dos cenários; não é sinal médico. O paciente e o dispositivo são fictícios.
 - **Dados pessoais:** nenhum. O app não coleta localização nem identidade; envia só a intensidade do movimento.
 - **Papel do celular:** na demonstração, o mesmo celular é o app do cuidador e o sensor de movimento do paciente. Num cenário real, o sensor ficaria com o paciente.
+- **Celular físico:** o app foi verificado no emulador do Android Studio, com o acelerômetro simulado. O grupo optou por não testar num aparelho real; diferenças de sensor, fabricante ou rede móvel não foram observadas.
+- **Relógio do ESP32 no Wokwi:** a simulação anda a ~35% do tempo real, e o relógio atrasa. O ESP32 se corrige pelo cabeçalho `Date` da API (D36), que não é autenticado; quem estiver no caminho pode fazê-lo errar a hora e ter as mensagens recusadas.
 - **Segurança:**
   - não há limite de tentativas de login;
   - o token não pode ser revogado antes de vencer (D24);
@@ -174,7 +176,7 @@ Outras limitações declaradas:
 
 | Ferramenta | Finalidade | Síntese das orientações | Sugestões aproveitadas ou modificadas | Validação |
 |---|---|---|---|---|
-| Claude Code (Claude Opus 5.5) | Plano do Marco 4; rotas do app na API; regra de contexto; testes; CI com JUnit; esqueleto do app Android; documentação do Marco 4 | Usar o celular como segundo produtor via acelerômetro; token assinado em vez de chave no APK; descartar leitura atrasada pelo horário de captura; mesma fila FIFO para os dois produtores | Aproveitadas: rotas, testes, CI, app e documentos. Modificado durante o trabalho: o teste de supressão passou a aceitar `DADOS_INSUFICIENTES` nos primeiros lotes, porque a janela ainda não está cheia. Corrigido depois da avaliação: a leitura do celular contava para a persistência de entrada e fazia o alerta voltar em 0 s (commit `a94e70b`) | 49 testes no registro histórico do Marco 4; no PR #6, CI reportou 56 casos Python (Python 3.10/3.12), além dos 18 testes JVM; testes instrumentados Compose ainda dependem da conclusão do job; revisão do grupo e ensaio físico em [`docs/verificacao.md`](docs/verificacao.md) |
+| Claude Code (Claude Opus 5.5) | Plano do Marco 4; rotas do app na API; regra de contexto; testes; CI com JUnit; esqueleto do app Android; documentação do Marco 4 | Usar o celular como segundo produtor via acelerômetro; token assinado em vez de chave no APK; descartar leitura atrasada pelo horário de captura; mesma fila FIFO para os dois produtores | Aproveitadas: rotas, testes, CI, app e documentos. Modificado durante o trabalho: o teste de supressão passou a aceitar `DADOS_INSUFICIENTES` nos primeiros lotes, porque a janela ainda não está cheia. Corrigido depois da avaliação: a leitura do celular contava para a persistência de entrada e fazia o alerta voltar em 0 s (commit `a94e70b`) | 54 testes da API e 27 do app, locais e no CI (Python 3.10 e 3.12); revisão do grupo; ensaio completo em [`docs/verificacao.md`](docs/verificacao.md) |
 | ChatGPT (GPT-6) | PR #6: painel Android nativo, mapeamento dos dados da API, consulta ao histórico, recuperação do snapshot persistido, testes, CI e documentação | Manter a API como fonte de verdade e o app Kotlin/Compose como segundo produtor; restaurar apenas o que o banco efetivamente persistiu | Aproveitadas com acelerômetro, HTTPS, Bearer e polling existentes preservados; fila e contexto móvel não persistidos continuam voláteis | Testes do PR #6 no GitHub Actions e revisão/ensaio do grupo; não declarar validação física antes da execução |
 | _Ferramentas usadas nos marcos anteriores_ | _a preencher pelo grupo_ | | | |
 

@@ -7,7 +7,7 @@ O contrato com a API está em [`../contrato/app-v1.json`](../contrato/app-v1.jso
 |---|---|
 | `Api.kt` | Login → token Bearer; estado; reconhecer alerta; envio do movimento. Só aceita `https://`. |
 | `Movimento.kt` | Acelerômetro: pico de \|aceleração/9,81 − 1\| (em g) entre dois envios. |
-| `MainActivity.kt` | ViewModel (consulta a cada 2 s, envio do movimento a cada 2 s) e as telas de login e de estado. |
+| `MainActivity.kt` | ViewModel (consulta a cada 2 s, envio do movimento a cada 2 s) e as telas: login, estado (simples: estado, FC, movimento, dispositivo e o botão de reconhecer) e detalhes (cobertura, fila, gráfico da FC, transições e histórico do banco, como no painel web). |
 
 ## Segurança
 
@@ -39,7 +39,7 @@ Versões: Gradle 9.9.3 (wrapper no repositório), AGP 9.5.3 com Kotlin embutido,
 
 - O app faz polling a cada 2 s (não usa o WebSocket do painel).
 - O acelerômetro continua ligado enquanto o app está aberto, inclusive em segundo plano. Em produção, isso iria para um serviço em primeiro plano.
-- Testes de unidade na JVM: `.\gradlew.bat testDebugUnitTest` (15 testes em `app/src/test`, sobre `Logica.kt`). Não há testes instrumentados de interface; os comportamentos de API do app estão cobertos em `marco4/testes/test_app_mobile.py`.
+- Testes de unidade na JVM: `.\gradlew.bat testDebugUnitTest` (27 testes em `app/src/test`, sobre `Logica.kt`). Os instrumentados estão na seção abaixo; os comportamentos de API do app estão cobertos em `marco4/testes/test_app_mobile.py`.
 
 ## Testes
 

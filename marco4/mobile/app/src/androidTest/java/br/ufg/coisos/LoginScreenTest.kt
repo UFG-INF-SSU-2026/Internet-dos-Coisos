@@ -16,8 +16,8 @@ class LoginScreenTest {
 
     @Test
     fun mostraCamposDeLoginDoCuidador() {
-        composeRule.onNodeWithText("Internet dos Coisos").assertIsDisplayed()
-        composeRule.onNodeWithText("URL HTTPS da API").assertIsDisplayed()
+        composeRule.onNodeWithText("Coisos Cuidador").assertIsDisplayed()
+        composeRule.onNodeWithText("Servidor (https://)").assertIsDisplayed()
         composeRule.onNodeWithText("Usuário").assertIsDisplayed()
         composeRule.onNodeWithText("Senha").assertIsDisplayed()
         composeRule.onNodeWithText("Entrar").assertIsDisplayed()

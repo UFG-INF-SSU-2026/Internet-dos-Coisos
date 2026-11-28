@@ -169,3 +169,75 @@ class ResumoTest {
         assertEquals("lote-2", leituras.last().loteId)
     }
 }
+
+class ApresentacaoTest {
+    @Test fun cada_estado_tem_titulo_e_tom() {
+        assertEquals(Aparencia("Tudo bem", "Frequência cardíaca dentro do esperado", Tom.BOM),
+            aparenciaDoEstado("NORMAL"))
+        assertEquals(Tom.ALERTA, aparenciaDoEstado("ATENCAO").tom)
+        assertEquals("Atenção", aparenciaDoEstado("ATENCAO").titulo)
+        assertEquals(Tom.NEUTRO, aparenciaDoEstado("DADOS_INSUFICIENTES").tom)
+        assertEquals("Aguardando o dispositivo", aparenciaDoEstado("SEM_DADOS").titulo)
+        assertEquals("Aguardando o dispositivo", aparenciaDoEstado("qualquer coisa").titulo)
+    }
+
+    @Test fun movimento_em_portugues() {
+        assertEquals("Em repouso", textoMovimento("REST"))
+        assertEquals("Em movimento", textoMovimento("ACTIVE"))
+        assertEquals("—", textoMovimento("—"))
+        assertEquals("Leitura inválida", textoMovimento("INVALIDO"))
+    }
+
+    @Test fun status_do_comando_explica_o_ciclo_2() {
+        assertEquals("Enviado, aguardando o dispositivo", textoComando("PENDENTE"))
+        assertEquals("Entregue ao dispositivo", textoComando("ENTREGUE"))
+        assertEquals("Alarme silenciado no dispositivo", textoComando("EXECUTADO"))
+        assertNull(textoComando(null))
+    }
+
+    @Test fun fc_arredondada_e_hora_local() {
+        val r = Resumo.de(JSONObject("""
+            {"estado":"ATENCAO","ultimoContatoUtc":"2026-11-27T18:19:27.5+00:00",
+             "resumo":{"fcMedia":119.6},"comando":{"commandId":"c","status":"EXECUTADO"}}"""))
+        assertEquals("120", r.fcBpm)
+        assertNull(r.statusComando)              // executado e sem horário de criação: não é deste alerta
+        assertEquals("15:19:27", horaLocal(r.ultimoContato, java.time.ZoneOffset.ofHours(-3)))
+        assertEquals("—", horaLocal("—"))
+        assertEquals("—", Resumo.de(JSONObject("{}")).fcBpm)
+    }
+}
+
+class ComandoDoAlertaTest {
+    private fun estado(inicio: String, criado: String?, status: String = "EXECUTADO") = Resumo.de(JSONObject("""
+        {"estado":"ATENCAO","historico":[{"estado":"ATENCAO","horaUtc":"$inicio"}],
+         "comando":${if (criado == null) "null" else """{"commandId":"c","status":"$status","criadoEmUtc":"$criado"}"""}}"""))
+
+    @Test fun reconhecido_neste_alerta_esconde_o_botao_e_mostra_o_status() {
+        val r = estado("2026-11-27T21:50:08+00:00", "2026-11-27T21:50:18+00:00")
+        assertFalse(r.podeReconhecer)
+        assertEquals("EXECUTADO", r.statusComando)
+    }
+
+    @Test fun comando_de_um_alerta_anterior_nao_aparece() {
+        // defeito achado no ensaio completo: o alerta novo mostrava "Alarme silenciado"
+        val r = estado("2026-11-27T21:56:16+00:00", "2026-11-27T21:50:18+00:00")
+        assertTrue(r.podeReconhecer)
+        assertNull(r.statusComando)
+    }
+
+    @Test fun pendente_neste_alerta_tambem_esconde_o_botao() {
+        val r = estado("2026-11-27T21:50:08+00:00", "2026-11-27T21:50:18+00:00", "PENDENTE")
+        assertFalse(r.podeReconhecer)
+        assertEquals("PENDENTE", r.statusComando)
+    }
+
+    @Test fun comando_em_andamento_aparece_mesmo_sem_horario() {
+        // regra do #6: com PENDENTE/ENTREGUE o botão fica bloqueado e o status aparece
+        val r = Resumo.de(JSONObject("""{"estado":"ATENCAO","comando":{"commandId":"c","status":"ENTREGUE"}}"""))
+        assertFalse(r.podeReconhecer)
+        assertEquals("ENTREGUE", r.statusComando)
+    }
+
+    @Test fun sem_comando_pode_reconhecer() =
+        assertTrue(estado("2026-11-27T21:50:08+00:00", null).podeReconhecer)
+}

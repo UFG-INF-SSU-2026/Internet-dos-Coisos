@@ -189,8 +189,28 @@ float lerAceleracaoG() {
 //   HMAC(chave, horario + "\n" + METODO + " " + rota + "\n" + corpo)
 // A chave nunca trafega. A API recalcula: chave errada ou corpo alterado -> 401;
 // horario com mais de 120 s -> 401 (replays dentro da janela ainda sao possiveis).
+// Relogio (D36): o NTP acerta a hora no boot, mas no Wokwi a simulacao anda a ~35% do tempo
+// real e o relogio do ESP32 fica para tras; se o NTP falha (DNS), a diferenca passa de 120 s
+// e a API recusa tudo com 401. Cada resposta HTTP da API traz o cabecalho Date, usado para
+// corrigir a diferenca (resolucao de 1 s, bem dentro da janela).
+long ajusteRelogioS = 0;
+
+// Quando o NTP consegue sincronizar, o relogio ja esta certo: o ajuste pelo Date volta a zero
+// (senao os dois se somavam e o lote seguinte saia adiantado, com 401).
+void relogioSincronizado(struct timeval*) { ajusteRelogioS = 0; }
+
+void corrigirRelogio(const String& data) {   // "Thu, 27 Nov 2026 21:30:00 GMT"
+  struct tm t = {};
+  if (data.length() == 0 || !strptime(data.c_str(), "%a, %d %b %Y %H:%M:%S", &t)) return;
+  long diferenca = (long)(mktime(&t) - time(nullptr));   // TZ em UTC: configTime(0, 0)
+  if (labs(diferenca - ajusteRelogioS) <= 2) return;
+  if (labs(diferenca - ajusteRelogioS) >= 10)
+    Serial.printf("[%lu] relogio corrigido pela API: %+ld s\n", millis(), diferenca);
+  ajusteRelogioS = diferenca;
+}
+
 void assinar(const char* metodo, const String& rota, const char* corpo, char* horario, char* hex) {
-  snprintf(horario, 12, "%lu", (unsigned long)time(nullptr));
+  snprintf(horario, 12, "%lu", (unsigned long)(time(nullptr) + ajusteRelogioS));
   String mensagem = String(horario) + "\n" + metodo + " " + rota + "\n" + (corpo ? corpo : "");
   uint8_t mac[32];
   mbedtls_md_hmac(mbedtls_md_info_from_type(MBEDTLS_MD_SHA256),
@@ -214,6 +234,8 @@ int requisicao(const String& rota, const char* corpo, String& resposta) {
   if (!http.begin(cliente, base + rota)) return -1;
   http.addHeader("X-Timestamp", horario);
   http.addHeader("X-Assinatura", assinatura);
+  const char* cabecalhos[] = {"Date"};
+  http.collectHeaders(cabecalhos, 1);
   int codigo;
   if (corpo) {
     http.addHeader("Content-Type", "application/json");
@@ -221,7 +243,10 @@ int requisicao(const String& rota, const char* corpo, String& resposta) {
   } else {
     codigo = http.GET();
   }
-  if (codigo > 0) resposta = http.getString();
+  if (codigo > 0) {
+    resposta = http.getString();
+    corrigirRelogio(http.header("Date"));     // vale tambem para o 401 por horario
+  }
   http.end();
   if (codigo == 200 || codigo == 201) ultimaRespostaMs = millis();
   return codigo;
@@ -377,6 +402,7 @@ void setup() {
   // A assinatura leva o horario: sem NTP a API recusa as mensagens. Espera ate 10 s.
   // Re-sincroniza a cada 15 s: no Wokwi o relogio simulado atrasa quando a simulacao fica lenta.
   sntp_set_sync_interval(15000);
+  sntp_set_time_sync_notification_cb(relogioSincronizado);
   configTime(0, 0, "pool.ntp.org", "time.google.com");
   Serial.print("NTP");
   for (int i = 0; i < 40 && time(nullptr) < 1700000000; i++) { delay(250); Serial.print("."); }

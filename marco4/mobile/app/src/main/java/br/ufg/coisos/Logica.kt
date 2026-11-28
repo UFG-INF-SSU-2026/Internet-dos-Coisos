@@ -2,6 +2,9 @@ package br.ufg.coisos
 
 import org.json.JSONArray
 import org.json.JSONObject
+import java.time.OffsetDateTime
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 import kotlin.math.abs
 import kotlin.math.roundToInt
 import kotlin.math.sqrt
@@ -100,9 +103,19 @@ data class Resumo(
     val comandoId: String?,
     val comandoStatus: String?,
     val comandoConfirmadoEm: String?,
+    /** FC arredondada para o número grande da tela principal. */
+    val fcBpm: String = "—",
+    /** Status do comando, só quando ele é deste alerta ou ainda está aberto. */
+    val statusComando: String? = null,
+    /** O último comando foi emitido depois do início do estado atual (é deste alerta). */
+    val comandoDesteAlerta: Boolean = false,
 ) {
+    private val comandoAberto: Boolean
+        get() = comandoStatus == "PENDENTE" || comandoStatus == "ENTREGUE"
+
+    /** Só com alerta ativo, sem comando em andamento e ainda não reconhecido neste alerta. */
     val podeReconhecer: Boolean
-        get() = estado == "ATENCAO" && (comandoStatus == null || comandoStatus == "EXECUTADO")
+        get() = estado == "ATENCAO" && !comandoAberto && !comandoDesteAlerta
 
     val comando: String?
         get() = comandoStatus?.let { "${comandoId ?: "comando"}: $it" }
@@ -116,6 +129,12 @@ data class Resumo(
             val fc = r.numero("fcMedia")
             val coberturaFc = r.numero("coberturaFc")
             val coberturaMov = r.numero("coberturaMov")
+            // historico vem do mais recente para o mais antigo: o primeiro é o início do estado atual
+            val inicio = j.optJSONArray("historico")?.optJSONObject(0)?.let { instante(it.texto("horaUtc")) }
+            val criado = comando?.let { instante(it.texto("criadoEmUtc")) }
+            val desteAlerta = criado != null && (inicio == null || !criado.isBefore(inicio))
+            val status = comando?.texto("status", "")?.ifEmpty { null }
+            val aberto = status == "PENDENTE" || status == "ENTREGUE"
 
             return Resumo(
                 estado = j.texto("estado", "SEM_DADOS"),
@@ -150,11 +169,51 @@ data class Resumo(
                 celularRecebidas = celular.optInt("recebidas"),
                 celularDescartadas = celular.optInt("descartadas"),
                 comandoId = comando?.texto("commandId"),
-                comandoStatus = comando?.texto("status"),
+                comandoStatus = status,
                 comandoConfirmadoEm = comando?.let {
                     if (it.isNull("confirmadoEmUtc")) null else it.texto("confirmadoEmUtc")
                 },
+                fcBpm = fc?.roundToInt()?.toString() ?: "—",
+                statusComando = if (desteAlerta || aberto) status else null,
+                comandoDesteAlerta = desteAlerta,
             )
         }
     }
 }
+
+// --- Apresentação: textos da tela principal, fora do Compose para serem testados ---
+
+enum class Tom { BOM, ALERTA, NEUTRO }
+
+data class Aparencia(val titulo: String, val descricao: String, val tom: Tom)
+
+fun aparenciaDoEstado(estado: String): Aparencia = when (estado) {
+    "NORMAL" -> Aparencia("Tudo bem", "Frequência cardíaca dentro do esperado", Tom.BOM)
+    "ATENCAO" -> Aparencia("Atenção", "Frequência cardíaca alta com o paciente em repouso", Tom.ALERTA)
+    "DADOS_INSUFICIENTES" -> Aparencia("Sem leituras suficientes", "Verifique o sensor e a conexão do dispositivo", Tom.NEUTRO)
+    else -> Aparencia("Aguardando o dispositivo", "Ainda não chegaram leituras do paciente", Tom.NEUTRO)
+}
+
+fun textoMovimento(movimento: String): String = when (movimento) {
+    "REST" -> "Em repouso"
+    "ACTIVE" -> "Em movimento"
+    "INVALIDO" -> "Leitura inválida"
+    else -> "—"
+}
+
+fun textoComando(status: String?): String? = when (status) {
+    null -> null
+    "PENDENTE" -> "Enviado, aguardando o dispositivo"
+    "ENTREGUE" -> "Entregue ao dispositivo"
+    "EXECUTADO" -> "Alarme silenciado no dispositivo"
+    else -> status
+}
+
+/** Instante de um horário ISO da API, ou null se ausente ou inválido. */
+fun instante(iso: String): java.time.Instant? =
+    try { OffsetDateTime.parse(iso).toInstant() } catch (e: Exception) { null }
+
+/** Horário ISO da API (UTC) no fuso do celular, como HH:mm:ss; "—" se não houver. */
+fun horaLocal(iso: String, fuso: ZoneId = ZoneId.systemDefault()): String = try {
+    OffsetDateTime.parse(iso).atZoneSameInstant(fuso).format(DateTimeFormatter.ofPattern("HH:mm:ss"))
+} catch (e: Exception) { "—" }

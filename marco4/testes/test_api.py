@@ -152,6 +152,17 @@ class TestarApi(unittest.TestCase):
         self.assertEqual(d['estado'], 'DADOS_INSUFICIENTES')
         self.assertFalse(d['online'])
 
+    def test_online_acompanha_o_ritmo_dos_lotes(self):
+        # Wokwi lento (D32): lotes a cada 12 s. O app mostrava "Sem contato" entre dois lotes.
+        self.entrar()
+        for _ in range(5):
+            self.relogio += 12
+            self.assertEqual(self.esp32_post('/api/leituras', self.lote(int(self.relogio))).status_code, 200)
+        self.relogio += 13
+        self.assertTrue(self.client.get(ESTADO).json()['online'])
+        self.relogio += 30                       # além do limite adaptativo (teto de 30 s)
+        self.assertFalse(self.client.get(ESTADO).json()['online'])
+
     # ---------- ciclo 2 ----------
     def test_ciclo2_comando_e_ack(self):
         self.entrar()

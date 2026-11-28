@@ -4,6 +4,8 @@ Gerado a partir de `marco4/mobile` com `gradlew assembleDebug` (ver `../mobile/R
 
 | Arquivo | Versão | Pacote | SHA-256 |
 |---|---|---|---|
-| `coisos-cuidador.apk` | 4.0 (versionCode 1), debug | `br.ufg.coisos.cuidador` | `b46d01f97270dfba37cfeabc8dd07cd208e3e280c4af91a06e39ac1f5a5a9f9b` |
+| `coisos-cuidador.apk` | 4.0 (versionCode 1), debug | `br.ufg.coisos.cuidador` | `ef84dce2a0392dd3e0c5119764b8207f52a7264808dbb36748a53fa3d8a4cd7d` |
+
+Compilado no commit `2c77e3a`, o mesmo usado no ensaio completo (`../docs/verificacao.md`, seção 2).
 
 Assinado com a chave de debug do Android Studio (instalável por `adb install` ou abrindo o arquivo no celular). Permissões: apenas `INTERNET`. Android 8.0 ou mais novo.
