@@ -15,7 +15,7 @@ O cuidador acompanha pelo app ou pelo painel web e reconhece o alerta, o que sil
 
 ## Vídeo do Marco 4
 
-**Link:** _a preencher depois da gravação_
+**Link:** _a preencher depois da gravação_ · roteiro em [`docs/roteiro-video-marco4.md`](docs/roteiro-video-marco4.md)
 **Versão demonstrada:** tag `marco4`, commit _a preencher_.
 
 ---
