@@ -1,7 +1,14 @@
 # Roteiro do vídeo — Marco 4 (até 15 minutos)
 
 **O que o vídeo precisa mostrar (enunciado):** os 4 integrantes; o app como segundo produtor; e as quatro verificações: fluxo e contexto, persistência, segurança, falha e recuperação.
-O roteiro soma **14 min**, com 1 min de folga. Os nomes ao lado de cada bloco são uma sugestão de divisão; troquem à vontade.
+O roteiro soma **14 min**, com 1 min de folga. Divisão votada pelo grupo:
+
+| Pessoa | Integrante | Parte |
+|---|---|---|
+| 1 | Felipe O Carvalho | Introdução, arquitetura e documentação |
+| 2 | Murilo Bernardo | Demonstração do sistema no Wokwi e no painel web |
+| 3 | Matheus Augusto | Demonstração do aplicativo Android e do contexto |
+| 4 | Felipe Alves | Persistência e testes |
 Os valores são sintéticos e o paciente é fictício (`patient-0042`).
 
 ## Antes de gravar (checklist, ~10 min)
@@ -24,17 +31,19 @@ Se for o emulador: o "balançar o celular" é feito em *Virtual sensors → Acce
 
 | Tempo | Quem | Na tela | O que dizer |
 |---|---|---|---|
-| 0:00–1:30 | Felipe Alves | Diagrama da arquitetura | O problema: FC alta durante esforço gera falso alerta. Dois produtores: ESP32 (FC e movimento) e o **celular do cuidador** (acelerômetro). Fila FIFO única, regra com estado e tempo, TimescaleDB, comando de volta ao ESP32 com ACK. Os 5 itens entregues: APK, persistência, testes, implantação e artigo |
-| 1:30–2:30 | Matheus Augusto | Wokwi + serial | Sensor de pulso simulado (chip próprio): o ESP32 detecta os batimentos na onda e calcula a FC; lotes de 3 leituras assinados com HMAC. Tecla **`1`** no Monitor Serial: coração normal |
-| 2:30–3:00 | Matheus Augusto | App: login | URL do túnel (HTTPS), `cuidador01` e a senha; a tela principal mostra **"Tudo bem"**, a FC e o dispositivo **Conectado** |
-| 3:00–4:45 | Matheus Augusto | Wokwi + app | **Verificação 1, fluxo e contexto.** Tecla **`2`** (FC alta em repouso): em ~40 s o app passa a **"Atenção"**. Tocar **Reconhecer alerta**: o quadro mostra "Enviado", "Entregue" e "Alarme silenciado no dispositivo"; na serial, o ESP32 executa o comando e o buzzer para; o botão some |
-| 4:45–6:00 | Matheus Augusto | App + sensores | **Contexto pelo celular:** balançar o celular → "Movimento: Em movimento, medido pelo celular" e o estado volta a **"Tudo bem"** mesmo com a FC alta (razão `movimento_no_celular`). Parar → o alerta volta em ~20 s. É o segundo produtor mudando a decisão |
-| 6:00–6:45 | Felipe O Carvalho | App → **Ver detalhes** | Cobertura, fila FIFO com lotes do ESP32 e do CELULAR intercalados, gráfico da FC, ciclo do comando, mudanças de estado |
-| 6:45–8:30 | Felipe O Carvalho | Detalhes + SQL + Terminal 1 | **Verificação 2, persistência.** "Consultar histórico": `Origem: TimescaleDB`. No SQL: `SELECT count(*) FROM leituras;` e `SELECT ts, estado, razao FROM eventos_estado ORDER BY ts DESC LIMIT 5;`. **Parar a API (Ctrl+C) e subir de novo:** o app avisa "Sem conexão…", mantém o último estado e volta sozinho sem novo login; em Ver detalhes, as transições e o último comando foram **restaurados do banco** (D35); a contagem de leituras só cresceu |
-| 8:30–10:15 | Murilo Bernardo | App + terminal | **Verificação 3, segurança.** Senha errada → "Usuário ou senha incorretos". URL `http://…` → recusada pelo app. No terminal (comandos abaixo): token inválido → **401**; token válido pedindo `patient-9999` → **403**; o próprio paciente → **200**. Explicar: ESP32 com HMAC + horário (mensagem alterada ou antiga = 401), app com token Bearer de 8 h, cadeado HTTPS do túnel. Nenhum segredo no repositório nem no APK |
-| 10:15–12:00 | Murilo Bernardo | Wokwi + app | **Verificação 4, falha e recuperação.** Tecla **`f`**: o ESP32 perde a rede, entra em **modo local** (buzzer decide sozinho); o app mostra "Sem leituras suficientes" e "Sem contato". Com a rede de volta, o estado é recalculado. Desligar a rede do celular: faixa "Sem conexão. Mostrando o último estado recebido."; religar: volta em ~3 s |
-| 12:00–13:00 | Felipe Alves | Actions + terminal | **Testes:** 54 testes da API (2 contra o TimescaleDB real no CI), 27 de unidade do app e 2 de interface no emulador do CI, tudo verde. Mostrar o último run da `main` |
-| 13:00–14:00 | Todos (15 s cada) | Artigo / README | Cada um diz uma contribuição sua e um resultado: processamento rápido diante dos intervalos; o contexto elimina o alerta durante o movimento e o mantém em repouso; defeitos achados nas medições e no ensaio (relógio do ESP32, D36); limitações: ESP32 sem TLS, fila volátil, sem teste em celular físico |
+| 0:00–1:30 | **1. Felipe O Carvalho** | Diagrama da arquitetura | O problema: FC alta durante esforço gera falso alerta. Dois produtores: o ESP32 (FC e movimento) e o **celular do cuidador** (acelerômetro). Fila FIFO única, regra com estado e tempo, TimescaleDB e comando de volta ao ESP32 com ACK |
+| 1:30–2:30 | **1. Felipe O Carvalho** | README e artigo | Os 5 itens entregues (APK, persistência, testes, implantação, artigo de 15 páginas); onde ficam as decisões (`decisoes.md`), a verificação com o registro do ensaio (`verificacao.md`) e o guia de implantação |
+| 2:30–3:45 | **2. Murilo Bernardo** | Wokwi + serial | Sensor de pulso simulado (chip próprio): o ESP32 detecta os batimentos na onda e calcula a FC; lotes de 3 leituras assinados com **HMAC + horário** (mensagem alterada ou antiga = 401). Tecla **`1`**: coração normal, `lote N: HTTP 200` |
+| 3:45–4:30 | **2. Murilo Bernardo** | Painel web (`/login`) | Login do cuidador no painel; estado, gráfico da FC e fila atualizando por WebSocket, sem recarregar a página |
+| 4:30–6:00 | **2. Murilo Bernardo** | Wokwi + painel | **Verificação 4, falha e recuperação (ESP32).** Tecla **`3`**: sensor fora do dedo → `DADOS_INSUFICIENTES`. Tecla **`f`**: o ESP32 perde a rede e entra em **modo local** (o buzzer decide sozinho); o painel mostra o dispositivo sem contato. Com a rede de volta, o estado é recalculado. Terminar com a tecla **`1`** |
+| 6:00–6:30 | **3. Matheus Augusto** | App: login | URL do túnel (HTTPS), `cuidador01` e a senha; a tela principal mostra **"Tudo bem"**, a FC e o dispositivo **Conectado** |
+| 6:30–8:00 | **3. Matheus Augusto** | Wokwi + app | **Verificação 1, fluxo e contexto.** Tecla **`2`** (FC alta em repouso): em ~40 s o app passa a **"Atenção"**. Tocar **Reconhecer alerta**: o quadro mostra "Enviado", "Entregue" e "Alarme silenciado no dispositivo"; na serial, o ESP32 executa o comando e o buzzer para; o botão some |
+| 8:00–9:00 | **3. Matheus Augusto** | App + sensores | **Contexto pelo celular:** balançar o celular → "Em movimento, medido pelo celular", e o estado volta a **"Tudo bem"** mesmo com a FC alta (razão `movimento_no_celular`). Parar → o alerta volta em ~20 s |
+| 9:00–10:15 | **3. Matheus Augusto** | App + terminal | **Verificação 3, segurança.** Senha errada → "Usuário ou senha incorretos"; URL `http://` recusada pelo app; comandos abaixo: token inválido → **401**, outro paciente → **403**, o próprio → **200**, `http://` → 301 para HTTPS. **Falha no celular:** desligar a rede → faixa "Sem conexão. Mostrando o último estado recebido."; religar → volta em ~3 s |
+| 10:15–11:00 | **4. Felipe Alves** | App → **Ver detalhes** | Cobertura, fila FIFO com lotes do ESP32 e do CELULAR intercalados, ciclo do comando e mudanças de estado |
+| 11:00–12:30 | **4. Felipe Alves** | Detalhes + SQL + Terminal da API | **Verificação 2, persistência.** "Consultar histórico": `Origem: TimescaleDB`. No SQL: `SELECT count(*) FROM leituras;` e `SELECT ts, estado, razao FROM eventos_estado ORDER BY ts DESC LIMIT 5;`. **Parar a API (Ctrl+C) e subir de novo:** o app mantém o último estado e volta sozinho sem novo login; em Ver detalhes, as transições e o último comando foram **restaurados do banco** (D35); a contagem de leituras só cresceu |
+| 12:30–13:15 | **4. Felipe Alves** | GitHub Actions | **Testes:** 54 da API (2 contra o TimescaleDB real no CI), 27 de unidade do app e 2 de interface no emulador do CI, tudo verde no último run da `main` |
+| 13:15–14:00 | Todos (~10 s cada) | Artigo | Um resultado por pessoa: processamento rápido diante dos intervalos; o contexto elimina o alerta no movimento e o mantém em repouso; defeitos achados nas medições e no ensaio (relógio do ESP32, D36); limitações: ESP32 sem TLS, fila volátil, sem teste em celular físico |
 
 ### Comandos da verificação 3 (PowerShell)
 
