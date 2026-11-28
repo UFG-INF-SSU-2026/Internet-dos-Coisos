@@ -71,7 +71,7 @@ Execute nesta ordem. Os passos 2 e 3 ficam com terminais abertos.
 | 2 | API (Terminal 1) | `.\.venv\Scripts\python.exe marco4\api\app.py` | `curl.exe http://127.0.0.1:5000/api/saude` devolve `"versao": "4.0"` e `"banco_configurado": true` |
 | 3 | Túnel (Terminal 2) | `cloudflared tunnel --url http://127.0.0.1:5000` | Mostra `https://<nome>.trycloudflare.com`; `curl.exe https://<nome>.trycloudflare.com/api/saude` devolve 200 |
 | 4 | ESP32 no Wokwi do VS Code | Em `config.h`, `API_BASE_URL = "http://host.wokwi.internal:5000"`; depois `pio run` em `marco4/produtor` e **F1 → Wokwi: Start Simulator** (abaixo) | Serial Monitor mostra `lote N: HTTP 200` |
-| 5 | App Android | Instalar `marco4/apk/coisos-cuidador.apk` (seção 6), informar `https://<nome>.trycloudflare.com`, `cuidador01` e a senha | Tela de estado mostra NORMAL ou ATENCAO e "ESP32 online" |
+| 5 | App Android | Instalar `marco4/apk/coisos-cuidador.apk` (seção 6), informar `https://<nome>.trycloudflare.com`, `cuidador01` e a senha | Tela principal mostra "Tudo bem" ou "Atenção" e o dispositivo "Conectado" |
 | 6 | Painel web (opcional) | http://127.0.0.1:5000/login | Gráfico e estado atualizando por WebSocket |
 
 A URL do túnel muda a cada vez que o `cloudflared` reinicia. Quando mudar, atualize a URL na tela de login do app.

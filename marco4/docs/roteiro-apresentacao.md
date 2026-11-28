@@ -1,5 +1,7 @@
 # Roteiro de apresentação — Marco 3 (10 minutos)
 
+> Para o vídeo do Marco 4, use o [roteiro do Marco 4](roteiro-video-marco4.md).
+
 **Objetivo:** demonstrar arquitetura, dois ciclos produtor-consumidor, quatro melhorias solicitadas (WebSocket, fila, TimescaleDB e simulação) e os conceitos de computação ubíqua estudados na disciplina. Os valores são sintéticos.
 
 | Tempo | Tela ou operação | Explicação objetiva |
