@@ -55,7 +55,7 @@ A lógica que não depende do Android fica em [`Logica.kt`](../mobile/app/src/ma
 
 ### Complemento do PR #6
 
-Foram acrescentados os seguintes testes. Os testes Python e JVM passaram, inclusive localmente em 27/11 com o TimescaleDB em Docker; os instrumentados Compose dependem do emulador no CI, que passou a liberar o KVM do runner:
+Foram acrescentados os seguintes testes. Os testes Python e JVM passaram, inclusive localmente em 27/11 com o TimescaleDB em Docker; os 2 instrumentados Compose passaram no emulador do CI depois que o workflow passou a liberar o KVM do runner (PR #8):
 - `test_regra.py`: restauração da janela, estado, histórico e intervalos do silêncio adaptativo.
 - `test_consolidacao.py`: reinício da API com snapshot persistido e comando `PENDENTE`.
 - `test_temporal_real.py`: gravação, consulta e recuperação de leituras, transições e status do comando contra TimescaleDB real. Localmente, requer `DATABASE_URL`; no CI, usa `timescale/timescaledb:latest-pg17`.

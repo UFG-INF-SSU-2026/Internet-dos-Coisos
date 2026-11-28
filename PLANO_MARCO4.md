@@ -117,5 +117,5 @@ Vão para o README com impacto e justificativa, como o PDF permite.
 - [ ] TLS no ESP32
 - [x] Teste de integração com TimescaleDB real no CI (PR #6: integração test_temporal_real.py; CI verde em Python 3.10 e 3.12).
 - [x] Testes de unidade do app na JVM (18, CI verde com APK debug como artefato)
-- [ ] Testes instrumentados de interface do app (2 testes Compose adicionados no PR #6; o job do emulador falhava por falta de KVM no runner, que o workflow passou a liberar; aguardando CI).
+- [x] Testes instrumentados de interface do app (2 testes Compose do PR #6; o job do emulador falhava por falta de KVM no runner; com o KVM liberado, passaram no CI do PR #8).
 - [x] Recuperar o estado e o comando pendente quando a API reinicia (D35, teste do ciclo de reinício e restauração do TimescaleDB passaram no CI; ensaio manual com banco continua no roteiro 2.5).
