@@ -1,8 +1,9 @@
-# ./gradlew testDebugUnitTest --rerun-tasks (marco4/mobile), 27/11/2026 19:24, JDK do Android Studio, commit 178cf38
+# ./gradlew testDebugUnitTest --rerun-tasks (marco4/mobile), 27/11/2026 21:20, JDK do Android Studio, commit 5a74058
 ApresentacaoTest > cada_estado_tem_titulo_e_tom PASSED
 ApresentacaoTest > movimento_em_portugues PASSED
 ApresentacaoTest > fc_arredondada_e_hora_local PASSED
 ApresentacaoTest > status_do_comando_explica_o_ciclo_2 PASSED
+ComandoDoAlertaTest > comando_em_andamento_aparece_mesmo_sem_horario PASSED
 ComandoDoAlertaTest > reconhecido_neste_alerta_esconde_o_botao_e_mostra_o_status PASSED
 ComandoDoAlertaTest > sem_comando_pode_reconhecer PASSED
 ComandoDoAlertaTest > comando_de_um_alerta_anterior_nao_aparece PASSED
@@ -14,12 +15,16 @@ IntensidadeTest > sacudida_do_ensaio_passa_do_limiar_de_repouso PASSED
 IntensidadeTest > tremor_pequeno_fica_abaixo_do_limiar PASSED
 IntensidadeTest > parado_de_pe_e_zero PASSED
 IntensidadeTest > queda_livre_e_um_g PASSED
+ResumoTest > historico_persistido_converte_leituras PASSED
+ResumoTest > reconhecimento_so_habilita_quando_nao_ha_comando_aberto PASSED
 ResumoTest > campos_nulos_viram_traco_e_nao_o_texto_null PASSED
 ResumoTest > resposta_vazia_nao_quebra PASSED
 ResumoTest > estado_completo_em_alerta PASSED
 ResumoTest > contexto_do_celular_desativa_o_botao PASSED
+ResumoTest > painel_expoe_cobertura_fila_persistencia_e_historico PASSED
 UrlTest > aceita_https_e_tira_barra_e_espacos PASSED
 UrlTest > recusa_vazio_e_so_o_esquema PASSED
 UrlTest > recusa_http PASSED
 UrlTest > recusa_sem_esquema PASSED
-BUILD SUCCESSFUL in 29s
+
+27 testes, 0 falhas

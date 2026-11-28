@@ -392,7 +392,7 @@ fun TelaDetalhes(vm: CuidadorViewModel) {
         }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Metrica("FC média", r.fcMedia, Modifier.weight(1f))
-            Metrica("Movimento", r.movimento, Modifier.weight(1f))
+            Metrica("Movimento", textoMovimento(r.movimento), Modifier.weight(1f))
         }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Metrica("Cobertura FC", r.coberturaFc, Modifier.weight(1f))

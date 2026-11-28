@@ -61,6 +61,8 @@ Foram acrescentados os seguintes testes. Os testes Python e JVM passaram, inclus
 - `test_temporal_real.py`: gravação, consulta e recuperação de leituras, transições e status do comando contra TimescaleDB real. Localmente, requer `DATABASE_URL`; no CI, usa `timescale/timescaledb:latest-pg17`.
 - Android: 3 novos testes JVM e 2 testes instrumentados Compose para login e recusa de URL incompleta.
 
+**Conferência da junção com o #7 (27/11, 21:20–21:25):** APK deste branch no emulador, API reiniciada com o TimescaleDB do ensaio e o ESP32 do Wokwi enviando lotes. Ao iniciar, a API restaurou do banco as transições e o último comando (`cmd-57bee09c`, executado às 19:05:08), que aparecem em "Ver detalhes"; a tela principal não mostra esse reconhecimento, porque ele é de um alerta anterior. A consulta ao histórico respondeu com `origem: TimescaleDB`, e o voltar do sistema leva à tela principal. Prints: [principal](evidencias/app/juncao/j1-principal.png), [detalhes](evidencias/app/juncao/j2-detalhes.png) e [histórico do banco](evidencias/app/juncao/j3-historico-banco.png).
+
 O estado restaurado usa até 10 leituras recentes, até 20 transições e o registro de status mais recente do comando. Movimento do celular, fila FIFO e contadores da sessão não são restaurados. Se o banco estiver indisponível, a API inicia em memória vazia.
 
 ### Entradas, resultado esperado e resultado observado
